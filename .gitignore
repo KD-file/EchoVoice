@@ -32,3 +32,24 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Flutter/Dart/Pub
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+
+# Generated Dart files
+*.g.dart
+*.freezed.dart
+
+# Misc
+.DS_Store

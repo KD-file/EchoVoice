@@ -1,0 +1,31 @@
+name: echovoice
+description: >
+  On-device, phoneme-level pronunciation assessment app for speech
+  therapy practice, built for autistic children with speech sound
+  difficulties in partnership with Growth Journey Learning Center Inc.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.3.0
+  path: ^1.9.0
+  cupertino_icons: ^1.0.9
+  google_fonts: ^6.2.1
+  pdf: ^3.13.0
+  web: ^1.1.1
+
+dev_dependencies:
+  flutter_lints: ^3.0.2
+  flutter_test:
+    sdk: flutter
+  lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

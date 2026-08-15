@@ -1,0 +1,19 @@
+# Core (all platforms)
+numpy>=1.26
+torch>=2.2
+transformers>=4.46      # Whisper encoder loading (openai/whisper-tiny.en by default)
+huggingface-hub>=0.24
+
+# Export / inference
+onnx>=1.15
+onnxscript>=0.7      # required by torch's ONNX exporter (torch>=2.6)
+onnxruntime>=1.17
+onnx2tf>=1.24        # optional TFLite conversion (pulls tensorflow)
+soundfile>=0.12
+
+# Tooling
+pyyaml>=6.0
+pytest>=8.0
+
+# Recommended for real-corpus training on Windows
+# numba; llvmlite  (only needed if you add librosa-based feature variants)
