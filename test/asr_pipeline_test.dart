@@ -6,12 +6,11 @@ import 'package:echovoice/models/phoneme_target.dart';
 import 'package:echovoice/services/asr_pipeline.dart';
 import 'package:echovoice/utils/exceptions.dart';
 
-/// Builds 16-bit little-endian PCM for a 1s 440 Hz tone at 0.5 amplitude,
+/// Builds 16-bit little-endian PCM for a 440 Hz tone at 0.5 amplitude,
 /// using numpy-compatible quantization (truncate `sample * 32767`, clip).
 /// Matches `_write_wav` in `backend/tests/test_features.py`.
-Uint8List _pcmTone440Hz() {
-  const fs = 16000;
-  const n = fs;
+Uint8List _pcmTone440Hz({int fs = 16000, double seconds = 1.0}) {
+  final n = (fs * seconds).round();
   final pcm = Uint8List(n * 2);
   final data = ByteData.view(pcm.buffer);
   for (var i = 0; i < n; i++) {
@@ -107,6 +106,52 @@ void main() {
       // Sum of the full padded tensor, cross-checked against numpy.
       final total = result.fold<double>(0.0, (acc, v) => acc + v);
       expect(total, closeTo(-80290.671875, 50));
+    });
+
+    test('resamples 8 kHz audio and matches the Python contract', () {
+      // 1s 440 Hz tone captured at 8 kHz. The Dart extractor must linearly
+      // resample to 16 kHz (features._resample_linear) before STFT. Reference
+      // produced by: read_wav -> _resample_linear(s, 8000, 16000) ->
+      // extract_to_buffer.
+      const cells = <String, double>{
+        '0:5': -4.663034915924072,
+        '0:20': -7.537626266479492,
+        '0:40': -13.699701309204102,
+        '0:55': -13.811271667480469,
+        '0:79': -3.1581079959869385,
+        '10:5': -4.665998935699463,
+        '10:20': -7.539926052093506,
+        '10:40': -13.701236724853516,
+        '10:55': -13.8116455078125,
+        '10:79': -3.6122615337371826,
+        '50:5': -4.672568321228027,
+        '50:20': -7.542702674865723,
+        '50:40': -13.702434539794922,
+        '50:55': -13.812323570251465,
+        '50:79': -7.841701507568359,
+        '90:5': -4.67057466506958,
+        '90:20': -7.53518533706665,
+        '90:40': -13.695868492126465,
+        '90:55': -13.811729431152344,
+        '90:79': -3.488814115524292,
+        '97:5': -4.778811931610107,
+        '97:20': -7.438739776611328,
+        '97:40': -13.588728904724121,
+        '97:55': -13.804421424865723,
+        '97:79': -3.178561210632324,
+      };
+      final result = extractor.extractMelSpectrogram(
+        _pcmTone440Hz(fs: 8000),
+        sampleRateHz: 8000,
+      );
+      cells.forEach((key, expected) {
+        final parts = key.split(':');
+        final frame = int.parse(parts[0]);
+        final bin = int.parse(parts[1]);
+        expect(result[frame * kEchoVoiceNumMelBins + bin], closeTo(expected, 0.05));
+      });
+      final total = result.fold<double>(0.0, (acc, v) => acc + v);
+      expect(total, closeTo(-79620.8046875, 50));
     });
 
     test('concentrates energy in the 440 Hz mel band', () {

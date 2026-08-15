@@ -88,9 +88,15 @@ class AcousticFeatureExtractor {
   /// returned flat (row-major) as the float32 input tensor for the model.
   ///
   /// Mirrors `features.extract_to_buffer` in `backend/echovoice_ml/features.py`
-  /// so on-device features match server-side features bit-for-bit in math.
+  /// (via `features.wav_to_mel` for the resampling step) so on-device features
+  /// match server-side features bit-for-bit in math. Audio captured at a rate
+  /// other than 16 kHz is linearly resampled to the feature contract rate
+  /// before STFT, exactly like `features._resample_linear`.
   Float32List _computeMelSpectrogram(Uint8List pcm, int sampleRateHz) {
-    final samples = _pcmToSamples(pcm);
+    var samples = _pcmToSamples(pcm);
+    if (sampleRateHz != kEchoVoiceSampleRateHz) {
+      samples = _resampleLinear(samples, sampleRateHz, kEchoVoiceSampleRateHz);
+    }
     final magnitude = _stftMagnitude(
       samples,
       frameLength: kEchoVoiceFrameLength,
@@ -126,6 +132,50 @@ class AcousticFeatureExtractor {
       samples[i] = data.getInt16(i * 2, Endian.little) / 32768.0;
     }
     return samples;
+  }
+
+  /// Crude linear resampler mirroring `features._resample_linear` (which in
+  /// turn mirrors `np.interp` over a [0, 1] normalized time axis). Used to
+  /// bring non-16 kHz capture audio up/down to the feature contract rate.
+  Float64List _resampleLinear(Float64List samples, int srcRate, int dstRate) {
+    final n = _roundHalfEven(samples.length * dstRate / srcRate);
+    final xOld = _linspace(0.0, 1.0, samples.length);
+    final xNew = _linspace(0.0, 1.0, n);
+    final out = Float64List(n);
+    for (var i = 0; i < n; i++) {
+      out[i] = _interpLinear(xOld, samples, xNew[i]);
+    }
+    return out;
+  }
+
+  /// Linear interpolation matching `np.interp` for an input clamped to the
+  /// range of [xOld] (both axes span [0, 1], so no clamping is needed here).
+  double _interpLinear(Float64List xOld, Float64List yOld, double x) {
+    if (x <= xOld[0]) return yOld[0];
+    if (x >= xOld[xOld.length - 1]) return yOld[yOld.length - 1];
+    var lo = 0;
+    var hi = xOld.length - 1;
+    while (hi - lo > 1) {
+      final mid = (lo + hi) >> 1;
+      if (xOld[mid] <= x) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    final span = xOld[hi] - xOld[lo];
+    final frac = span == 0 ? 0.0 : (x - xOld[lo]) / span;
+    return yOld[lo] + (yOld[hi] - yOld[lo]) * frac;
+  }
+
+  /// Round-half-to-even, matching Python's built-in `round` so the resampled
+  /// length is identical to `features._resample_linear`.
+  int _roundHalfEven(double x) {
+    final f = x.floorToDouble();
+    final diff = x - f;
+    if (diff < 0.5) return f.toInt();
+    if (diff > 0.5) return (f + 1).toInt();
+    return f.toInt().isEven ? f.toInt() : f.toInt() + 1;
   }
 
   /// DFT-symmetric Hann window (window[0] == window[n - 1] == 0), matching
