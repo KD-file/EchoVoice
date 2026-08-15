@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:echovoice/app.dart';
+import 'package:echovoice/services/demo_pipeline.dart';
+import 'package:echovoice/services/tflite_asr_model.dart';
 import 'package:echovoice/state/session_state.dart';
 
 void main() {
   setUpAll(() {
     // Tests cannot reach the font CDN; fall back to system fonts.
     GoogleFonts.config.allowRuntimeFetching = false;
+    // Keep asset I/O (rootBundle.load) out of the fake-async test zone by
+    // always using the demo model, which ignores the audio input anyway.
+    asrModelLoader = (targets) async => DemoAsrModelRunner(targets: targets);
   });
 
   Future<SessionState> onboard(WidgetTester tester) async {

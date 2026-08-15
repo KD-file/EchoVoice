@@ -8,6 +8,7 @@ import '../models/phoneme_target.dart';
 import '../services/asr_pipeline.dart';
 import '../services/assessment_pipeline.dart';
 import '../services/demo_pipeline.dart';
+import '../services/tflite_asr_model.dart';
 import '../state/session_state.dart';
 import '../ui/app_theme.dart';
 import '../utils/exceptions.dart';
@@ -96,9 +97,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
     try {
       final pcm = _recorder.capture();
-      final assessor = OnDeviceAssessor(
-        model: DemoAsrModelRunner(targets: exercise.targets),
-      );
+      final model = await asrModelLoader(exercise.targets);
+      final assessor = OnDeviceAssessor(model: model);
       final result = assessor.assess(pcm: pcm, exercise: exercise);
       final outcome = await widget.session.recordAttempt(
         result: result,

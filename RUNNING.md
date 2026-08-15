@@ -78,7 +78,40 @@ Once running:
 flutter test
 ```
 
-## 8. Backend (optional — Python ML)
+## 8. On-device ASR model
+
+Out of the box the app scores attempts with a **demo runtime** that ignores the
+audio and fabricates plausible phonemes, so the full flow (record → score →
+feedback) works without any model on disk.
+
+To use the **real** exported model:
+
+1. Export it (requires `onnx2tf`; see `backend/README.md`):
+
+   ```bash
+   cd backend
+   .\.venv\Scripts\activate
+   python scripts/export_tflite.py --checkpoint runs/run1/checkpoint.pt --out runs/run1 --tflite
+   ```
+
+2. Copy the artifact into the app:
+
+   ```bash
+   Copy-Item backend\runs\run1\tflite\echovoice_asr.tflite assets\models\echovoice_asr.tflite
+   ```
+
+3. Declare it in `pubspec.yaml` under `flutter: assets`:
+
+   ```yaml
+   - assets/models/
+   ```
+
+`TfliteAsrModelRunner` (in `lib/services/tflite_asr_model.dart`) then loads the
+model plus `assets/phonemes/phoneme_set.json` and runs CTC greedy decoding on
+device. If the model asset is absent it silently falls back to the demo
+runtime, so the app never breaks.
+
+## 9. Backend (optional — Python ML)
 
 The `backend/` folder is the Python training/export side and is **not** required to run the app.
 
