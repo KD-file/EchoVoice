@@ -199,9 +199,9 @@ class _ProfileModalState extends State<ProfileModal> {
                   const SizedBox(width: 10),
                   _RoleChip(
                     emoji: '\u{1F9D1}\u200D\u2695\uFE0F',
-                    label: 'SLP-Caregiver',
-                    selected: session.role == UserRole.slp,
-                    onTap: () => session.setRole(UserRole.slp),
+                    label: 'Caregiver',
+                    selected: session.role == UserRole.caregiver,
+                    onTap: () => session.setRole(UserRole.caregiver),
                   ),
                 ],
               ),

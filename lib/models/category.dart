@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
 /// Who is looking at the app right now: the child practicing (learner) or
-/// the speech-language pathologist / caregiver reviewing progress (SLP).
-enum UserRole { learner, slp }
+/// the caregiver reviewing progress and configuring practice.
+enum UserRole { learner, caregiver }
 
 extension UserRoleX on UserRole {
   String get label => switch (this) {
         UserRole.learner => 'Learner',
-        UserRole.slp => 'SLP-Caregiver',
+        UserRole.caregiver => 'Caregiver',
       };
 }
 
@@ -28,7 +28,7 @@ class CategoryWord {
 
 /// A sound family shown on the practice home grid (e.g. "Popping Sounds"
 /// for /p/ and /b/). Words are grouped by the phonemes a child is working
-/// on, which is how the SLP assigns practice.
+/// on, which is how the caregiver assigns practice.
 class SoundCategory {
   final String id;
   final String name;

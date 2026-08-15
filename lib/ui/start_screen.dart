@@ -150,20 +150,20 @@ class _StartScreenState extends State<StartScreen> {
                                   () => _role = UserRole.learner,
                                 ),
                               );
-                              final slp = _RoleCard(
+                              final caregiver = _RoleCard(
                                 emoji: '\u{1F9D1}\u200D\u2695\uFE0F',
-                                label: 'SLP-Caregiver',
+                                label: 'Caregiver',
                                 hint: 'I guide practice',
-                                selected: _role == UserRole.slp,
+                                selected: _role == UserRole.caregiver,
                                 onTap: () =>
-                                    setState(() => _role = UserRole.slp),
+                                    setState(() => _role = UserRole.caregiver),
                               );
                               if (constraints.maxWidth < 420) {
                                 return Column(
                                   children: [
                                     learner,
                                     const SizedBox(height: 12),
-                                    slp,
+                                    caregiver,
                                   ],
                                 );
                               }
@@ -171,7 +171,7 @@ class _StartScreenState extends State<StartScreen> {
                                 children: [
                                   Expanded(child: learner),
                                   const SizedBox(width: 12),
-                                  Expanded(child: slp),
+                                  Expanded(child: caregiver),
                                 ],
                               );
                             },

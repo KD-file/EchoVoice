@@ -15,7 +15,7 @@ import 'settings_modal.dart';
 
 /// Root scaffold for signed-in users: the persistent header (brand, star
 /// pill, profile pill), the Practice tab (home -> category -> exercise) and
-/// the Progress tab (Learner / SLP views), over the sky-and-grass backdrop.
+/// the Progress tab (Learner / Caregiver views), over the sky-and-grass backdrop.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.session});
 

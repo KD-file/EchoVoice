@@ -11,7 +11,7 @@ import 'assign_modal.dart';
 import 'widgets/score_ring.dart';
 
 /// Progress tab: a Learner view (overall score, stars, per-family accuracy
-/// bars, recent practice) and an SLP-Caregiver view (stats, assigned
+/// bars, recent practice) and a Caregiver view (stats, assigned
 /// practice, full attempt records). The segmented toggle picks the view.
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key, required this.session});
@@ -43,7 +43,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
         Expanded(
           child: _view == UserRole.learner
               ? _LearnerView(session: widget.session)
-              : _SlpView(session: widget.session),
+              : _CaregiverView(session: widget.session),
         ),
       ],
     );
@@ -77,9 +77,9 @@ class _ViewToggle extends StatelessWidget {
             const SizedBox(width: 6),
             _ToggleButton(
               emoji: '\u{1F9D1}\u200D\u2695\uFE0F',
-              label: 'SLP-Caregiver',
-              selected: selected == UserRole.slp,
-              onTap: () => onChanged(UserRole.slp),
+              label: 'Caregiver',
+              selected: selected == UserRole.caregiver,
+              onTap: () => onChanged(UserRole.caregiver),
             ),
           ],
         ),
@@ -360,11 +360,11 @@ class _CategoryBar extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// SLP-Caregiver view
+// Caregiver view
 // ---------------------------------------------------------------------------
 
-class _SlpView extends StatelessWidget {
-  const _SlpView({required this.session});
+class _CaregiverView extends StatelessWidget {
+  const _CaregiverView({required this.session});
 
   final SessionState session;
 
@@ -396,12 +396,12 @@ class _SlpView extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _SlpStat(
+              _CaregiverStat(
                 label: 'Average',
                 value: average == null ? '--' : '${(average * 100).round()}%',
               ),
-              _SlpStat(label: 'Attempts', value: '${session.records.length}'),
-              _SlpStat(label: 'Streak', value: '${session.streak}'),
+              _CaregiverStat(label: 'Attempts', value: '${session.records.length}'),
+              _CaregiverStat(label: 'Streak', value: '${session.streak}'),
             ],
           ),
         ),
@@ -431,8 +431,8 @@ class _SlpView extends StatelessWidget {
   }
 }
 
-class _SlpStat extends StatelessWidget {
-  const _SlpStat({required this.label, required this.value});
+class _CaregiverStat extends StatelessWidget {
+  const _CaregiverStat({required this.label, required this.value});
 
   final String label;
   final String value;

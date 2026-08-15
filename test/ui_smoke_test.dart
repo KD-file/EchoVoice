@@ -98,7 +98,7 @@ void main() {
     expect(find.byKey(const ValueKey('record-button')), findsOneWidget);
   });
 
-  testWidgets('progress tab toggles learner and SLP views', (tester) async {
+  testWidgets('progress tab toggles learner and caregiver views', (tester) async {
     await onboard(tester);
 
     await tester.tap(find.text('Progress'));
@@ -107,7 +107,7 @@ void main() {
     expect(find.text('Overall accuracy'), findsOneWidget);
     expect(find.text('Sound accuracy'), findsOneWidget);
 
-    await tester.tap(find.text('SLP-Caregiver'));
+    await tester.tap(find.text('Caregiver'));
     await tester.pumpAndSettle();
     expect(find.text('Caregiver dashboard'), findsOneWidget);
     expect(find.text('Assigned practice'), findsOneWidget);

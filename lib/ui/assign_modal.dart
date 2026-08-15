@@ -4,7 +4,7 @@ import '../models/category.dart';
 import '../state/session_state.dart';
 import '../ui/app_theme.dart';
 
-/// Bottom sheet where the SLP picks which sound families the child should
+/// Bottom sheet where the caregiver picks which sound families the child should
 /// practice. Saving replaces the assigned set.
 class AssignModal extends StatefulWidget {
   const AssignModal({super.key, required this.session});

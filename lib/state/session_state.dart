@@ -13,9 +13,9 @@ import '../services/progress_monitor.dart';
 enum PracticeView { home, category, exercise }
 
 /// Holds the app-wide session state: the learner's profile and role, the
-/// current category / word they are practicing, earned stars, the SLP's
-/// assigned practice, and the in-memory record of attempts (mirrored into
-/// SQLite when available).
+/// current category / word they are practicing, earned stars, the
+/// caregiver's assigned practice, and the in-memory record of attempts
+/// (mirrored into SQLite when available).
 ///
 /// Exposes the existing service layer (FeedbackGenerator, ProgressMonitor,
 /// DatabaseHelper) to the UI through one listenable, so the screens stay
@@ -69,7 +69,7 @@ class SessionState extends ChangeNotifier {
   String? selectedCategoryId;
   String? selectedExerciseId;
 
-  /// Sound families the SLP has assigned the child to practice.
+  /// Sound families the caregiver has assigned the child to practice.
   Set<String> assignedCategoryIds = {};
 
   /// Whether the background music track is enabled. Stored so the UI can

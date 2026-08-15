@@ -11,7 +11,7 @@ import 'report_save_stub.dart'
 
 /// Module 5.0 — Monitor Progress: exports a printable PDF report from the
 /// current [SessionState] (learner snapshot + per-category accuracy + full
-/// attempt records) so caregivers and SLPs can share progress with the
+/// attempt records) so caregivers can share progress with the
 /// clinic. Mirrors the summary shown on the Progress tab.
 ///
 /// The report is written to the user's Downloads folder (falling back to an
