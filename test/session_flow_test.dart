@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -182,6 +183,12 @@ void main() {
       );
 
       expect(session.records, hasLength(1));
+      final record = session.records.single;
+      expect(record.phonemeErrorMatrix, isNotEmpty);
+      final matrix = jsonDecode(record.phonemeErrorMatrix) as List<dynamic>;
+      expect(matrix, isNotEmpty);
+      expect(matrix.first, contains('op_type'));
+      expect(matrix.first, contains('target_index'));
       expect(session.streak, 1);
       expect(session.lastScore, 1.0);
       expect(session.starsForExercise(exercise.exerciseId), 3);

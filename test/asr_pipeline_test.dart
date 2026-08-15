@@ -1,9 +1,28 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echovoice/models/phoneme_target.dart';
 import 'package:echovoice/services/asr_pipeline.dart';
 import 'package:echovoice/utils/exceptions.dart';
+
+/// Builds 16-bit little-endian PCM for a 1s 440 Hz tone at 0.5 amplitude,
+/// using numpy-compatible quantization (truncate `sample * 32767`, clip).
+/// Matches `_write_wav` in `backend/tests/test_features.py`.
+Uint8List _pcmTone440Hz() {
+  const fs = 16000;
+  const n = fs;
+  final pcm = Uint8List(n * 2);
+  final data = ByteData.view(pcm.buffer);
+  for (var i = 0; i < n; i++) {
+    final t = i / fs;
+    var v = (0.5 * math.sin(2 * math.pi * 440 * t) * 32767).toInt();
+    if (v < -32768) v = -32768;
+    if (v > 32767) v = 32767;
+    data.setInt16(i * 2, v, Endian.little);
+  }
+  return pcm;
+}
 
 void main() {
   group('AcousticFeatureExtractor', () {
@@ -42,6 +61,70 @@ void main() {
         sampleRateHz: 16000,
       );
       expect(result, isA<Float32List>());
+    });
+
+    test('produces the fixed [800, 80] feature tensor shape', () {
+      final result = extractor.extractMelSpectrogram(
+        _pcmTone440Hz(),
+        sampleRateHz: 16000,
+      );
+      expect(result.length, kEchoVoiceMaxFrames * kEchoVoiceNumMelBins);
+      // Frames beyond the 98 real frames of a 1s recording are zero-padded,
+      // matching `features.extract_to_buffer`.
+      for (var i = 98 * kEchoVoiceNumMelBins; i < result.length; i++) {
+        expect(result[i], 0.0);
+      }
+    });
+
+    test('matches the Python feature contract on a 440 Hz tone', () {
+      // Reference produced by backend/echovoice_ml/features.py
+      // (extract_to_buffer) on the identical PCM; float32 log-mel values.
+      const cells = <String, double>{
+        '0:5': -4.651619911193848,
+        '0:20': -7.51694917678833,
+        '0:40': -13.734251022338867,
+        '0:55': -13.81359577178955,
+        '0:79': -13.767382621765137,
+        '10:5': -4.651619911193848,
+        '50:20': -7.51694917678833,
+        '90:40': -13.734251022338867,
+        '97:5': -4.7604594230651855,
+        '97:20': -7.4206743240356445,
+        '97:40': -13.619684219360352,
+        '97:55': -13.806933403015137,
+        '97:79': -13.73795223236084,
+      };
+      final result = extractor.extractMelSpectrogram(
+        _pcmTone440Hz(),
+        sampleRateHz: 16000,
+      );
+      cells.forEach((key, expected) {
+        final parts = key.split(':');
+        final frame = int.parse(parts[0]);
+        final bin = int.parse(parts[1]);
+        expect(result[frame * kEchoVoiceNumMelBins + bin], closeTo(expected, 0.05));
+      });
+      // Sum of the full padded tensor, cross-checked against numpy.
+      final total = result.fold<double>(0.0, (acc, v) => acc + v);
+      expect(total, closeTo(-80290.671875, 50));
+    });
+
+    test('concentrates energy in the 440 Hz mel band', () {
+      final result = extractor.extractMelSpectrogram(
+        _pcmTone440Hz(),
+        sampleRateHz: 16000,
+      );
+      final row = Float32List.sublistView(
+        result,
+        50 * kEchoVoiceNumMelBins,
+        (50 + 1) * kEchoVoiceNumMelBins,
+      );
+      var peakBin = 0;
+      for (var m = 1; m < row.length; m++) {
+        if (row[m] > row[peakBin]) peakBin = m;
+      }
+      // 440 Hz sits in mel bin ~13 of 80 for the 80-7600 Hz filterbank.
+      expect(peakBin, inInclusiveRange(10, 17));
     });
   });
 

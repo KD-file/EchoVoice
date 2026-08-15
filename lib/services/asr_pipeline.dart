@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../models/phoneme_target.dart';
@@ -17,6 +19,18 @@ const int kMaximumAudioDurationMs = 8000;
 /// extractor, and model input. Matches the ML feature contract
 /// (ml/config/model_config.yaml: sample_rate 16000).
 const int kEchoVoiceSampleRateHz = 16000;
+
+/// Feature contract shared with `backend/echovoice_ml/features.py`. These
+/// constants reproduce the exact STFT + mel-filterbank math on-device so
+/// TFLite results and server-side results are computed over identical inputs.
+const int kEchoVoiceFrameLength = 400; // 25 ms at 16 kHz
+const int kEchoVoiceHopLength = 160; // 10 ms at 16 kHz
+const int kEchoVoiceFftSize = 512;
+const int kEchoVoiceNumMelBins = 80;
+const double kEchoVoiceMelFminHz = 80.0;
+const double kEchoVoiceMelFmaxHz = 7600.0;
+const double kEchoVoiceLogOffset = 1e-6;
+const int kEchoVoiceMaxFrames = 800; // 8 s at 10 ms/frame
 
 /// Step 3.1 — Extract Acoustic Features.
 ///
@@ -69,16 +83,182 @@ class AcousticFeatureExtractor {
     return _computeMelSpectrogram(rawAudioPcm, sampleRateHz);
   }
 
-  /// Placeholder for the actual DSP work (windowing, FFT, mel filterbank
-  /// application). Kept private since callers only need the public,
-  /// validated entry point above.
+  /// Converts [pcm] (16-bit little-endian PCM) into a fixed-shape
+  /// [kEchoVoiceMaxFrames] x [kEchoVoiceNumMelBins] log-mel spectrogram,
+  /// returned flat (row-major) as the float32 input tensor for the model.
+  ///
+  /// Mirrors `features.extract_to_buffer` in `backend/echovoice_ml/features.py`
+  /// so on-device features match server-side features bit-for-bit in math.
   Float32List _computeMelSpectrogram(Uint8List pcm, int sampleRateHz) {
-    // Real implementation would use an FFT + mel-filterbank library
-    // (e.g., via a native plugin). Returning a correctly-shaped zero
-    // tensor here so the rest of the pipeline is exercisable/testable.
-    const numMelBins = 80;
-    const numFrames = 100;
-    return Float32List(numMelBins * numFrames);
+    final samples = _pcmToSamples(pcm);
+    final magnitude = _stftMagnitude(
+      samples,
+      frameLength: kEchoVoiceFrameLength,
+      hopLength: kEchoVoiceHopLength,
+      nFft: kEchoVoiceFftSize,
+      window: _hannWindow(kEchoVoiceFrameLength),
+    );
+    const numBins = kEchoVoiceFftSize ~/ 2 + 1;
+    final numFrames = magnitude.length ~/ numBins;
+    final filterbank = _melFilterbank();
+
+    final out = Float32List(kEchoVoiceMaxFrames * kEchoVoiceNumMelBins);
+    for (var t = 0; t < numFrames && t < kEchoVoiceMaxFrames; t++) {
+      for (var m = 0; m < kEchoVoiceNumMelBins; m++) {
+        var energy = 0.0;
+        for (var k = 0; k < numBins; k++) {
+          final mag = magnitude[t * numBins + k];
+          energy += mag * mag * filterbank[m * numBins + k];
+        }
+        out[t * kEchoVoiceNumMelBins + m] =
+            math.log(energy + kEchoVoiceLogOffset);
+      }
+    }
+    return out;
+  }
+
+  /// Decodes 16-bit little-endian PCM bytes into float64 samples in [-1, 1],
+  /// matching `features.read_wav` (divide by 32768.0).
+  Float64List _pcmToSamples(Uint8List pcm) {
+    final data = ByteData.view(pcm.buffer, pcm.offsetInBytes, pcm.length);
+    final samples = Float64List(pcm.length ~/ 2);
+    for (var i = 0; i < samples.length; i++) {
+      samples[i] = data.getInt16(i * 2, Endian.little) / 32768.0;
+    }
+    return samples;
+  }
+
+  /// DFT-symmetric Hann window (window[0] == window[n - 1] == 0), matching
+  /// `features.hann_window`.
+  Float64List _hannWindow(int length) {
+    final window = Float64List(length);
+    for (var i = 0; i < length; i++) {
+      window[i] = 0.5 * (1.0 - math.cos(2.0 * math.pi * i / (length - 1)));
+    }
+    return window;
+  }
+
+  /// STFT magnitude spectrum of shape [numFrames, nFft // 2 + 1], flattened
+  /// row-major, matching `features.stft`.
+  Float64List _stftMagnitude(
+    Float64List samples, {
+    required int frameLength,
+    required int hopLength,
+    required int nFft,
+    required Float64List window,
+  }) {
+    if (samples.length < frameLength) {
+      return Float64List(0);
+    }
+    final numFrames = (samples.length - frameLength) ~/ hopLength + 1;
+    final numBins = nFft ~/ 2 + 1;
+    final magnitude = Float64List(numFrames * numBins);
+    final re = Float64List(nFft);
+    final im = Float64List(nFft);
+    for (var t = 0; t < numFrames; t++) {
+      final start = t * hopLength;
+      re.fillRange(0, nFft, 0.0);
+      im.fillRange(0, nFft, 0.0);
+      for (var i = 0; i < frameLength; i++) {
+        re[i] = samples[start + i] * window[i];
+      }
+      _fftRadix2(re, im, nFft);
+      for (var k = 0; k < numBins; k++) {
+        magnitude[t * numBins + k] = math.sqrt(re[k] * re[k] + im[k] * im[k]);
+      }
+    }
+    return magnitude;
+  }
+
+  /// In-place iterative radix-2 FFT (Cooley-Tukey, bit-reversal first).
+  /// Unnormalized, matching numpy's `np.fft.rfft`.
+  void _fftRadix2(Float64List re, Float64List im, int n) {
+    for (var i = 1, j = 0; i < n; i++) {
+      var bit = n >> 1;
+      while ((j & bit) != 0) {
+        j ^= bit;
+        bit >>= 1;
+      }
+      j ^= bit;
+      if (i < j) {
+        var tmp = re[i];
+        re[i] = re[j];
+        re[j] = tmp;
+        tmp = im[i];
+        im[i] = im[j];
+        im[j] = tmp;
+      }
+    }
+    for (var len = 2; len <= n; len <<= 1) {
+      final ang = -2.0 * math.pi / len;
+      final wRe = math.cos(ang);
+      final wIm = math.sin(ang);
+      for (var i = 0; i < n; i += len) {
+        var curRe = 1.0;
+        var curIm = 0.0;
+        for (var k = 0; k < len ~/ 2; k++) {
+          final uRe = re[i + k];
+          final uIm = im[i + k];
+          final vRe = re[i + k + len ~/ 2] * curRe - im[i + k + len ~/ 2] * curIm;
+          final vIm = re[i + k + len ~/ 2] * curIm + im[i + k + len ~/ 2] * curRe;
+          re[i + k] = uRe + vRe;
+          im[i + k] = uIm + vIm;
+          re[i + k + len ~/ 2] = uRe - vRe;
+          im[i + k + len ~/ 2] = uIm - vIm;
+          final nextRe = curRe * wRe - curIm * wIm;
+          curIm = curRe * wIm + curIm * wRe;
+          curRe = nextRe;
+        }
+      }
+    }
+  }
+
+  /// Triangular mel-scale filterbank of shape
+  /// [kEchoVoiceNumMelBins, nFft // 2 + 1], flattened row-major, matching
+  /// `features.mel_filterbank`.
+  Float64List _melFilterbank() {
+    const numBins = kEchoVoiceFftSize ~/ 2 + 1;
+    final filterbank = Float64List(kEchoVoiceNumMelBins * numBins);
+    final fftFreqs = _linspace(0.0, kEchoVoiceSampleRateHz / 2.0, numBins);
+    final melPoints = _linspace(
+      _hzToMel(kEchoVoiceMelFminHz),
+      _hzToMel(kEchoVoiceMelFmaxHz),
+      kEchoVoiceNumMelBins + 2,
+    );
+    final hzPoints = [for (final m in melPoints) _melToHz(m)];
+
+    for (var m = 0; m < kEchoVoiceNumMelBins; m++) {
+      final left = hzPoints[m];
+      final center = hzPoints[m + 1];
+      final right = hzPoints[m + 2];
+      if (right - left <= 0) continue;
+      for (var k = 0; k < numBins; k++) {
+        final f = fftFreqs[k];
+        final rising = (f - left) / (center - left + 1e-12);
+        final falling = (right - f) / (right - center + 1e-12);
+        final triangle = math.min(rising, falling);
+        if (triangle > 0) filterbank[m * numBins + k] = triangle;
+      }
+    }
+    return filterbank;
+  }
+
+  static double _hzToMel(double hz) => 1127.0 * math.log(1.0 + hz / 700.0);
+
+  static double _melToHz(double mel) => 700.0 * (math.exp(mel / 1127.0) - 1.0);
+
+  /// Inclusive linspace matching numpy's `np.linspace`.
+  Float64List _linspace(double start, double end, int count) {
+    final out = Float64List(count);
+    if (count == 1) {
+      out[0] = start;
+      return out;
+    }
+    final step = (end - start) / (count - 1);
+    for (var i = 0; i < count; i++) {
+      out[i] = start + i * step;
+    }
+    return out;
   }
 }
 
@@ -237,6 +417,21 @@ class AlignmentOp {
 }
 
 enum AlignmentOpType { match, substitution, insertion, deletion }
+
+/// Serializes an alignment as JSON for storage in the
+/// `phoneme_error_matrix` column of the Progress Database.
+/// Each op is `{"predicted_index": int|null, "target_index": int,
+/// "op_type": "match"|"substitution"|"insertion"|"deletion"}`.
+String serializeAlignment(List<AlignmentOp> alignment) {
+  return jsonEncode([
+    for (final op in alignment)
+      {
+        'predicted_index': op.predictedIndex,
+        'target_index': op.targetIndex,
+        'op_type': op.opType.name,
+      },
+  ]);
+}
 
 /// Step 3.4 — Compute Pronunciation Score.
 ///

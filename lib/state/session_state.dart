@@ -6,6 +6,7 @@ import '../db/database_helper.dart';
 import '../models/attempt_outcome.dart';
 import '../models/category.dart';
 import '../models/phoneme_target.dart';
+import '../services/asr_pipeline.dart';
 import '../services/feedback_generator.dart';
 import '../services/progress_monitor.dart';
 
@@ -345,6 +346,7 @@ class SessionState extends ChangeNotifier {
       predictedPhonemes: result.predicted,
       accuracyScore: accuracy,
       phonemeErrorRate: result.phonemeErrorRate,
+      phonemeErrorMatrix: serializeAlignment(result.alignment),
     );
     records.add(record);
     progress.addRecord({

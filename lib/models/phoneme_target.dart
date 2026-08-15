@@ -84,6 +84,12 @@ class AssessmentRecord {
   final double accuracyScore;
   final double phonemeErrorRate;
 
+  /// Per-phoneme error breakdown serialized as JSON, matching the
+  /// `phoneme_error_matrix` column in the Progress Database. Each element is
+  /// an op record from [AlignmentOp] (predicted index, target index, and
+  /// operation type). Defaults to an empty matrix `'[]'`.
+  final String phonemeErrorMatrix;
+
   AssessmentRecord({
     required this.attemptId,
     required this.exerciseId,
@@ -91,6 +97,7 @@ class AssessmentRecord {
     required this.predictedPhonemes,
     required this.accuracyScore,
     required this.phonemeErrorRate,
+    this.phonemeErrorMatrix = '[]',
   }) {
     if (accuracyScore < 0.0 || accuracyScore > 1.0) {
       throw ValidationException(

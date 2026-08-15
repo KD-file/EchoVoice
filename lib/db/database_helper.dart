@@ -10,7 +10,9 @@ import '../utils/exceptions.dart';
 /// (and potentially done inconsistently) throughout the app.
 class DatabaseHelper {
   static const String _dbName = 'echovoice_progress.db';
-  static const int _dbVersion = 1;
+  /// Bumped to 2 when the `phoneme_error_matrix` column was added to
+  /// assessment_records (v1 -> v2 migration).
+  static const int _dbVersion = 2;
 
   Database? _db;
 
@@ -30,9 +32,18 @@ class DatabaseHelper {
               recorded_at TEXT NOT NULL,
               predicted_phonemes TEXT NOT NULL,
               accuracy_score REAL NOT NULL,
-              phoneme_error_rate REAL NOT NULL
+              phoneme_error_rate REAL NOT NULL,
+              phoneme_error_matrix TEXT NOT NULL
             )
           ''');
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute('''
+              ALTER TABLE assessment_records
+              ADD COLUMN phoneme_error_matrix TEXT NOT NULL DEFAULT '[]'
+            ''');
+          }
         },
       );
       return _db!;
@@ -64,6 +75,7 @@ class DatabaseHelper {
           'predicted_phonemes': record.predictedPhonemes.join(','),
           'accuracy_score': record.accuracyScore,
           'phoneme_error_rate': record.phonemeErrorRate,
+          'phoneme_error_matrix': record.phonemeErrorMatrix,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
