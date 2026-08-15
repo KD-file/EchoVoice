@@ -1,0 +1,50 @@
+flowchart TD
+    M0(("0.0<br/>EchoVoice Application"))
+
+    M1["1.0<br/>Manage Exercise"]
+    M2["2.0<br/>Capture Speech"]
+    M3["3.0<br/>Speech Recognition and Assessment"]
+    M4["4.0<br/>Generate Feedback"]
+    M5["5.0<br/>Monitor Progress"]
+    M6["6.0<br/>Configure Goals and Review Assessment"]
+
+    M0 -->|Exercise Selection| M1
+    M0 --> M2
+    M2 -->|Recorded Speech raw audio| M3
+    M3 -->|Assessment Result| M4
+    M0 --> M5
+    M0 -->|Goal Configuration| M6
+
+    M1 -. "Start-Recording Flag" .-> M2
+    M2 -. "Recording-Complete Flag" .-> M3
+    M6 -. "Update-Status Flag" .-> M0
+    M0 -. "Loop - repeats once per practice attempt" .-> M0
+
+    P31["3.1<br/>Extract Acoustic Features"]
+    P32["3.2<br/>Run Model Inference"]
+    P33["3.3<br/>Align Phonemes"]
+    P34["3.4<br/>Compute Pronunciation Score"]
+
+    M3 --> P31
+    P31 -->|Spectrogram Tensors| P32
+    P32 -->|Predicted Phoneme Sequence| P33
+    P33 -->|Phoneme Error Matrix| P34
+    P34 -->|Assessment Result| M3
+    P32 -. "Inference Status Flag" .-> P33
+
+    COND1{"IF report requested"}
+    COND2{"IF goal update submitted"}
+    M5 --- COND1
+    M6 --- COND2
+    COND1 -->|Longitudinal Progress Report Exportable| M5
+    COND2 -->|Goal Configuration| M6
+
+    D1[(D1  Progress Database)]
+    D2[(D2  Goal Config. Storage)]
+    D3[(D3  Phoneme Target Dictionary)]
+
+    M1 -. "Active Goals read" .-> D2
+    M5 -. "Stored Progress read" .-> D1
+    M6 -. "Store Goal Configuration write" .-> D2
+    P33 -. "Target Phoneme Template read" .-> D3
+    P34 -. "Assessment Record write" .-> D1

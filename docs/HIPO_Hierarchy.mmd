@@ -1,0 +1,24 @@
+flowchart TD
+    M0["0.0<br/>EchoVoice Application"]
+    M1["1.0<br/>Manage Exercise"]
+    M2["2.0<br/>Capture Speech"]
+    M3["3.0<br/>Speech Recognition and Assessment"]
+    M4["4.0<br/>Generate Feedback"]
+    M5["5.0<br/>Monitor Progress"]
+    M6["6.0<br/>Configure Goals and Review Assessment"]
+
+    M31["3.1<br/>Extract Acoustic Features"]
+    M32["3.2<br/>Run Model Inference"]
+    M33["3.3<br/>Align Phonemes"]
+    M34["3.4<br/>Compute Pronunciation Score"]
+
+    M0 --> M1
+    M0 --> M2
+    M0 --> M3
+    M0 --> M4
+    M0 --> M5
+    M0 --> M6
+    M3 --> M31
+    M3 --> M32
+    M3 --> M33
+    M3 --> M34

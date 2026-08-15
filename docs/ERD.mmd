@@ -1,0 +1,76 @@
+erDiagram
+    CAREGIVER ||--o{ LEARNER : has
+    CAREGIVER ||--o{ GOAL_CONFIGURATION : sets
+    LEARNER ||--o{ GOAL_CONFIGURATION : has
+    LEARNER ||--o{ PRACTICE_SESSION : participates_in
+    CAREGIVER ||--o{ PRACTICE_SESSION : initiates
+    LEARNER ||--o{ PROGRESS_REPORT : compiled_for
+    EXERCISE ||--o{ PHONEME_TARGET : contains
+    EXERCISE ||--o{ ATTEMPT : assigned_to
+    PRACTICE_SESSION ||--o{ ATTEMPT : contains
+    ATTEMPT ||--|| ASSESSMENT_RECORD : generates
+
+    CAREGIVER {
+        int caregiver_id PK
+        string full_name
+        string contact_number
+        string relationship_to_learner
+    }
+    LEARNER {
+        int learner_id PK
+        int caregiver_id FK
+        string full_name
+        date date_of_birth
+        string diagnosis_notes
+        date enrollment_date
+    }
+    GOAL_CONFIGURATION {
+        int goal_id PK
+        int learner_id FK
+        int caregiver_id FK
+        string target_phonemes
+        date date_set
+        string status
+    }
+    EXERCISE {
+        int exercise_id PK
+        string target_word
+        string difficulty_level
+        string category
+    }
+    PHONEME_TARGET {
+        int phoneme_id PK
+        int exercise_id FK
+        string phoneme_symbol
+        int position_index
+    }
+    PRACTICE_SESSION {
+        int session_id PK
+        int learner_id FK
+        int caregiver_id FK
+        datetime session_date
+    }
+    ATTEMPT {
+        int attempt_id PK
+        int session_id FK
+        int exercise_id FK
+        string audio_file_path
+        datetime timestamp
+    }
+    ASSESSMENT_RECORD {
+        int assessment_id PK
+        int attempt_id FK
+        string phoneme_error_matrix
+        float pronunciation_score
+        float wer
+        float per
+        datetime date_created
+    }
+    PROGRESS_REPORT {
+        int report_id PK
+        int learner_id FK
+        string recipient_type
+        date range_start
+        date range_end
+        string summary_text
+    }

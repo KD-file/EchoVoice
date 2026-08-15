@@ -1,0 +1,18 @@
+flowchart LR
+    P2((2.0<br/>Capture Speech<br/>Level 1))
+    P31((3.1<br/>Extract<br/>Acoustic<br/>Features))
+    P32((3.2<br/>Run<br/>Model<br/>Inference))
+    P33((3.3<br/>Align<br/>Phonemes))
+    P34((3.4<br/>Compute<br/>Pronunciation<br/>Score))
+    P4((4.0<br/>Generate Feedback<br/>Level 1))
+
+    D3[(D3  Phoneme Target Dictionary)]
+    D1[(D1  Progress Database)]
+
+    P2 -->|Raw audio file .wav| P31
+    P31 -->|Spectrogram Tensors| P32
+    P32 -->|Predicted Phoneme Sequence| P33
+    D3 -->|Target Phoneme Template| P33
+    P33 -->|Phoneme Error Matrix| P34
+    P34 -->|Assessment Result| P4
+    P34 -->|Assessment Record| D1

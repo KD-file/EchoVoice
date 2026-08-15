@@ -1,0 +1,12 @@
+flowchart LR
+    Learner[Learner]
+    Caregiver[Caregiver]
+    App((0<br/>EchoVoice<br/>Application))
+
+    Learner -->|Speech Input| App
+    App -->|Visual and Auditory Prompts| Learner
+
+    Caregiver -->|Exercise Selection| App
+    Caregiver -->|Goal configuration| App
+    App -->|Session Progress Summary| Caregiver
+    App -->|Longitudinal Progress Report Exportable| Caregiver

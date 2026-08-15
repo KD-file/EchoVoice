@@ -1,0 +1,31 @@
+flowchart TD
+    Learner[Learner]
+    Caregiver[Caregiver]
+
+    P1((1.0<br/>Manage<br/>Exercise))
+    P2((2.0<br/>Capture<br/>Speech))
+    P3((3.0<br/>Speech<br/>Recog. and<br/>Assessment))
+    P4((4.0<br/>Generate<br/>Feedback))
+    P5((5.0<br/>Monitor<br/>Progress))
+    P6((6.0<br/>Configure<br/>Goals))
+
+    D1[(D1  Progress Database)]
+    D2[(D2  Goal Config. Storage)]
+
+    Caregiver -->|Exercise Selection| P1
+    D2 -->|Active Goals| P1
+    P1 -->|Target Word| P2
+
+    Learner -->|Speech Input| P2
+    P2 -->|Recorded Speech| P3
+
+    P3 -->|Assessment Record| D1
+    P3 -->|Assessment Result| P4
+    P4 -->|Visual and Auditory Prompts| Learner
+
+    D1 -->|Stored Progress| P5
+    P5 -->|Session Progress Summary| Caregiver
+    P5 -->|Longitudinal Progress Report Exportable| Caregiver
+
+    Caregiver -->|Goal Configuration| P6
+    P6 -->|Store Goal Config.| D2
