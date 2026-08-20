@@ -4,7 +4,7 @@ import '../app_theme.dart';
 
 /// A circular accuracy gauge with the percentage in the center. Color shifts
 /// green -> red as accuracy drops so the child gets an immediate, glanceable
-/// result.
+/// result. The ring animates from 0 to its target value on first build.
 class ScoreRing extends StatelessWidget {
   const ScoreRing({super.key, required this.accuracy, this.size = 180});
 
@@ -24,38 +24,45 @@ class ScoreRing extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox(
-            width: size,
-            height: size,
-            child: CircularProgressIndicator(
-              value: clamped,
-              strokeWidth: strokeWidth,
-              color: color,
-              backgroundColor: color.withValues(alpha: 0.15),
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: clamped),
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeOutCubic,
+        builder: (context, current, _) {
+          return Stack(
+            alignment: Alignment.center,
             children: [
-              Text(
-                '${(clamped * 100).round()}%',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
+              SizedBox(
+                width: size,
+                height: size,
+                child: CircularProgressIndicator(
+                  value: current,
+                  strokeWidth: strokeWidth,
+                  color: color,
+                  backgroundColor: color.withValues(alpha: 0.15),
+                ),
               ),
-              Text(
-                'accuracy',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppColors.inkSoft,
-                    ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${(current * 100).round()}%',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                  ),
+                  Text(
+                    'accuracy',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: AppColors.inkSoft,
+                        ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }

@@ -7,6 +7,7 @@ import '../models/attempt_outcome.dart';
 import '../models/category.dart';
 import '../models/phoneme_target.dart';
 import '../services/asr_pipeline.dart';
+import '../services/audio_service.dart';
 import '../services/feedback_generator.dart';
 import '../services/progress_monitor.dart';
 
@@ -27,9 +28,11 @@ class SessionState extends ChangeNotifier {
     List<SoundCategory>? categories,
     bool persistToDatabase = true,
     DatabaseHelper? database,
+    AudioService? audio,
   })  : _library = exercises ?? defaultExerciseLibrary(),
         _persistToDatabase = persistToDatabase,
         _database = database ?? DatabaseHelper(),
+        _audio = audio,
         categories = categories ??
             buildCategories(exercises ?? defaultExerciseLibrary()) {
     _exerciseById = {
@@ -40,13 +43,24 @@ class SessionState extends ChangeNotifier {
         _categoryByExercise[word.exerciseId] = category;
       }
     }
+    // Wire the audio service into the feedback generator if available.
+    final audioSvc = _audio;
+    if (audioSvc != null) {
+      feedback.setAudioService(audioSvc);
+    }
+    // Load persisted records so progress survives app restarts.
+    _loadRecordsFromDatabase();
   }
 
   final List<Exercise> _library;
   final bool _persistToDatabase;
   final DatabaseHelper _database;
+  final AudioService? _audio;
   late final Map<String, Exercise> _exerciseById;
   final Map<String, SoundCategory> _categoryByExercise = {};
+
+  /// The audio service for sound effects and background music.
+  AudioService? get audio => _audio;
 
   /// The five sound families the learner can practice.
   final List<SoundCategory> categories;
@@ -219,13 +233,21 @@ class SessionState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Turns background music on or off. Music is a global preference that
-  /// applies to every screen (a real build would drive an audio player).
+  /// Turns background music on or off. Drives the AudioService so the
+  /// child's preference is heard immediately.
   void setMusicEnabled(bool enabled) {
     if (musicEnabled == enabled) {
       return;
     }
     musicEnabled = enabled;
+    final audioSvc = _audio;
+    if (audioSvc != null) {
+      if (enabled) {
+        audioSvc.startMusic();
+      } else {
+        audioSvc.stopMusic();
+      }
+    }
     notifyListeners();
   }
 
@@ -371,5 +393,56 @@ class SessionState extends ChangeNotifier {
       result: result,
       feedbackMessage: message,
     );
+  }
+
+  /// Loads all persisted assessment records from the database into memory
+  /// so stars, attempt counts, and accuracy stats survive app restarts.
+  /// Database errors are swallowed so the app keeps working even if
+  /// persistence is unavailable (e.g. desktop demo).
+  Future<void> _loadRecordsFromDatabase() async {
+    if (!_persistToDatabase) return;
+    try {
+      final rows = await _database.getAllRecords();
+      if (rows.isEmpty) return;
+      records.clear();
+      for (final row in rows) {
+        records.add(AssessmentRecord(
+          attemptId: row['attempt_id'] as String,
+          exerciseId: row['exercise_id'] as String,
+          recordedAt: DateTime.parse(row['recorded_at'] as String),
+          predictedPhonemes:
+              (row['predicted_phonemes'] as String).split(','),
+          accuracyScore: (row['accuracy_score'] as num).toDouble(),
+          phonemeErrorRate: (row['phoneme_error_rate'] as num).toDouble(),
+          phonemeErrorMatrix: row['phoneme_error_matrix'] as String,
+        ));
+      }
+      // Feed loaded records into the progress monitor.
+      for (final record in records) {
+        final exercise = _exerciseById[record.exerciseId];
+        progress.addRecord({
+          'score': record.accuracyScore,
+          'attempt_id': record.attemptId,
+          'exercise_id': record.exerciseId,
+          'word': exercise?.displayWord ?? record.exerciseId,
+        });
+      }
+      notifyListeners();
+    } on Exception {
+      // SQLite may not be available on every platform.
+    }
+  }
+
+  /// Resets all progress: clears in-memory records and the database.
+  Future<void> resetProgress() async {
+    records.clear();
+    if (_persistToDatabase) {
+      try {
+        await _database.deleteAllRecords();
+      } on Exception {
+        // Best-effort.
+      }
+    }
+    notifyListeners();
   }
 }

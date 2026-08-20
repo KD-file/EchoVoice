@@ -10,6 +10,7 @@ import 'progress_screen.dart';
 import 'profile_modal.dart';
 import 'widgets/app_dialogs.dart';
 import 'widgets/app_logo.dart';
+import 'widgets/pressable_scale.dart';
 import 'widgets/sky_grass_background.dart';
 import 'settings_modal.dart';
 
@@ -123,14 +124,53 @@ class _PracticeBody extends StatelessWidget {
 
   final SessionState session;
 
+  static const _viewOrder = {
+    PracticeView.home: 0,
+    PracticeView.category: 1,
+    PracticeView.exercise: 2,
+  };
+
   @override
   Widget build(BuildContext context) {
-    return switch (session.practiceView) {
-      PracticeView.home => HomeScreen(session: session),
-      PracticeView.category => CategoryScreen(session: session),
-      PracticeView.exercise => ExerciseScreen(session: session),
-    };
+    final view = session.practiceView;
+    final index = _viewOrder[view] ?? 0;
+    final isForward = index >= (_lastViewIndex ?? 0);
+    _lastViewIndex = index;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final isNew = child.key == ValueKey(view.name);
+        final offset = isNew
+            ? (isForward
+                ? const Offset(0.3, 0.0)
+                : const Offset(-0.3, 0.0))
+            : (isForward
+                ? const Offset(-0.3, 0.0)
+                : const Offset(0.3, 0.0));
+        return SlideTransition(
+          position: Tween<Offset>(begin: offset, end: Offset.zero)
+              .animate(animation),
+          child: FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey(view.name),
+        child: switch (view) {
+          PracticeView.home => HomeScreen(session: session),
+          PracticeView.category => CategoryScreen(session: session),
+          PracticeView.exercise => ExerciseScreen(session: session),
+        },
+      ),
+    );
   }
+
+  static int? _lastViewIndex;
 }
 
 class _Header extends StatelessWidget {
@@ -151,7 +191,7 @@ class _Header extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 440;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(compact ? 8 : 12, 8, compact ? 8 : 16, 8),
+      padding: EdgeInsets.fromLTRB(compact ? 8 : 12, 6, compact ? 8 : 12, 4),
       child: Row(
         children: [
           if (canGoBack)
@@ -222,19 +262,22 @@ class _SettingsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.92),
-      shape: const CircleBorder(),
-      child: InkWell(
-        key: const ValueKey('settings-button'),
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: const Padding(
-          padding: EdgeInsets.all(8),
-          child: Icon(
-            Icons.settings_rounded,
-            size: 22,
-            color: AppColors.tealDark,
+    return PressableScale(
+      onTap: onTap,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.92),
+        shape: const CircleBorder(),
+        child: InkWell(
+          key: const ValueKey('settings-button'),
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: const Padding(
+            padding: EdgeInsets.all(8),
+            child: Icon(
+              Icons.settings_rounded,
+              size: 22,
+              color: AppColors.tealDark,
+            ),
           ),
         ),
       ),
@@ -302,59 +345,62 @@ class _ProfilePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        key: const ValueKey('profile-pill'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: EdgeInsets.fromLTRB(6, 6, compact ? 6 : 10, 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.tealDark.withValues(alpha: 0.12),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.teal,
-                child: Text(
-                  _initials,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: Colors.white,
-                  ),
+    return PressableScale(
+      onTap: onTap,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const ValueKey('profile-pill'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(6, 6, compact ? 6 : 10, 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.tealDark.withValues(alpha: 0.12),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
-              ),
-              if (!compact) ...[
-                const SizedBox(width: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 110),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppColors.teal,
                   child: Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    _initials,
                     style: theme.textTheme.labelLarge?.copyWith(
-                      color: AppColors.ink,
+                      color: Colors.white,
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  size: 18,
-                  color: AppColors.inkSoft,
-                ),
+                if (!compact) ...[
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 110),
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: AppColors.ink,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: AppColors.inkSoft,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -373,7 +419,7 @@ class _TabBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
         child: Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(

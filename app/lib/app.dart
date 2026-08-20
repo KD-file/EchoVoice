@@ -38,18 +38,27 @@ class _EchoVoiceAppState extends State<EchoVoiceApp> {
     super.initState();
     if (widget.splashDuration == Duration.zero) {
       _showSplash = false;
+      _startMusicIfEnabled();
     } else {
       _splashTimer = Timer(widget.splashDuration, () {
         if (mounted) {
           setState(() => _showSplash = false);
+          _startMusicIfEnabled();
         }
       });
+    }
+  }
+
+  void _startMusicIfEnabled() {
+    if (widget.session.musicEnabled) {
+      widget.session.audio?.startMusic();
     }
   }
 
   @override
   void dispose() {
     _splashTimer?.cancel();
+    widget.session.audio?.dispose();
     super.dispose();
   }
 
@@ -60,14 +69,24 @@ class _EchoVoiceAppState extends State<EchoVoiceApp> {
       title: 'EchoVoice',
       debugShowCheckedModeBanner: false,
       theme: buildEchoVoiceTheme(),
-      home: _showSplash
-          ? const SplashScreen()
-          : ListenableBuilder(
-              listenable: session,
-              builder: (context, _) => session.isOnboarded
-                  ? HomeShell(session: session)
-                  : StartScreen(session: session),
-            ),
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 600),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: child,
+        ),
+        child: _showSplash
+            ? const SplashScreen(key: ValueKey('splash'))
+            : ListenableBuilder(
+                key: const ValueKey('content'),
+                listenable: session,
+                builder: (context, _) => session.isOnboarded
+                    ? HomeShell(session: session)
+                    : StartScreen(session: session),
+              ),
+      ),
     );
   }
 }

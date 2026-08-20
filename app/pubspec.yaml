@@ -19,6 +19,9 @@ dependencies:
   pdf: ^3.13.0
   web: ^1.1.1
   tflite_flutter: ^0.12.1
+  flutter_recorder: ^1.2.1
+  just_audio: ^0.9.42
+  flutter_tts: ^4.2.2
 
 dev_dependencies:
   flutter_lints: ^3.0.2

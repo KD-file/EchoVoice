@@ -8,11 +8,13 @@ import '../models/phoneme_target.dart';
 import '../services/asr_pipeline.dart';
 import '../services/assessment_pipeline.dart';
 import '../services/demo_pipeline.dart';
+import '../services/real_pcm_recorder.dart';
 import '../services/tflite_asr_model.dart';
 import '../state/session_state.dart';
 import '../ui/app_theme.dart';
 import '../utils/exceptions.dart';
 import 'widgets/app_dialogs.dart';
+import 'widgets/pressable_scale.dart';
 import 'widgets/score_ring.dart';
 
 /// The practice exercise: the target word, a listen button, the target
@@ -29,7 +31,9 @@ class ExerciseScreen extends StatefulWidget {
 }
 
 class _ExerciseScreenState extends State<ExerciseScreen> {
-  final SyntheticPcmRecorder _recorder = SyntheticPcmRecorder();
+  RealPcmRecorder? _realRecorder;
+  final SyntheticPcmRecorder _synthRecorder = SyntheticPcmRecorder();
+  bool _useRealMic = false;
   final ScrollController _scrollController = ScrollController();
   Timer? _recordTimer;
   Timer? _autoStopTimer;
@@ -38,8 +42,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   AttemptOutcome? _outcome;
   int _attemptNumber = 0;
 
-  /// Safety net: if the child does not tap "Done speaking", the demo
-  /// recording stops on its own and still scores the attempt.
+  /// Safety net: if the child does not tap "Done speaking", recording
+  /// stops on its own and still scores the attempt.
   static const Duration _autoStopAfter = Duration(seconds: 6);
 
   bool get _showCelebration =>
@@ -50,6 +54,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     _recordTimer?.cancel();
     _autoStopTimer?.cancel();
     _scrollController.dispose();
+    _realRecorder?.dispose();
     super.dispose();
   }
 
@@ -58,11 +63,19 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     if (exercise == null || _recording) {
       return;
     }
+    HapticFeedback.mediumImpact();
+
     setState(() {
       _recording = true;
       _elapsedSeconds = 0.0;
       _outcome = null;
     });
+
+    // Probe the real microphone in the background; _stopRecording will
+    // choose between real PCM and synthetic based on _useRealMic.
+    _realRecorder ??= RealPcmRecorder();
+    _useRealMic = await _realRecorder!.startRecording();
+
     _recordTimer?.cancel();
     _recordTimer = Timer.periodic(
       const Duration(milliseconds: 100),
@@ -74,8 +87,8 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       },
     );
 
-    // Safety net: if the child does not tap "Done speaking", the demo
-    // recording stops on its own and still scores the attempt.
+    // Safety net: if the child does not tap "Done speaking", recording
+    // stops on its own and still scores the attempt.
     _autoStopTimer?.cancel();
     _autoStopTimer = Timer(_autoStopAfter, _stopRecording);
   }
@@ -89,6 +102,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     _autoStopTimer?.cancel();
     _autoStopTimer = null;
     setState(() => _recording = false);
+    HapticFeedback.heavyImpact();
 
     final exercise = widget.session.currentExercise;
     if (exercise == null) {
@@ -96,7 +110,13 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     }
 
     try {
-      final pcm = _recorder.capture();
+      Uint8List? pcm;
+      if (_useRealMic && _realRecorder != null) {
+        pcm = await _realRecorder!.stopRecording();
+      }
+      // Fall back to synthetic if real mic returned nothing.
+      pcm ??= _synthRecorder.capture();
+
       final model = await asrModelLoader(exercise.targets);
       final assessor = OnDeviceAssessor(model: model);
       final result = assessor.assess(pcm: pcm, exercise: exercise);
@@ -111,6 +131,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         _outcome = outcome;
         _attemptNumber += 1;
       });
+      HapticFeedback.lightImpact();
       _revealResult();
     } on EchoVoiceException catch (error) {
       _showMessage(error.message);
@@ -136,15 +157,12 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     if (exercise == null || !widget.session.soundEnabled) {
       return;
     }
-    widget.session.feedback.playSound('prompt_${exercise.displayWord}');
+    final audio = widget.session.audio;
+    if (audio == null) return;
+    await audio.speakWord(exercise.displayWord);
     _showMessage(
       'Listen\u2026 say "${exercise.displayWord}" like the robot! \u{1F916}',
     );
-    try {
-      await SystemSound.play(SystemSoundType.alert);
-    } on PlatformException {
-      // No prompt audio in this environment; silently ignore.
-    }
   }
 
   void _tryAgain() {
@@ -203,7 +221,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         ListView(
           key: const ValueKey('exercise-screen'),
           controller: _scrollController,
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             if (category != null)
               Center(
@@ -282,20 +300,23 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             if (_recording) ...[
               const SizedBox(height: 14),
               Center(
-                child: FilledButton.icon(
-                  key: const ValueKey('done-speaking-button'),
-                  onPressed: _stopRecording,
-                  icon: const Icon(Icons.check_circle_rounded),
-                  label: const Text('Done speaking'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.teal,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 14,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                child: PressableScale(
+                  onTap: _stopRecording,
+                  child: FilledButton.icon(
+                    key: const ValueKey('done-speaking-button'),
+                    onPressed: _stopRecording,
+                    icon: const Icon(Icons.check_circle_rounded),
+                    label: const Text('Done speaking'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.teal,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ),
                 ),
@@ -303,21 +324,24 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             ],
             const SizedBox(height: 14),
             Center(
-              child: FilledButton.tonalIcon(
-                onPressed: widget.session.soundEnabled ? _playPrompt : null,
-                icon: const Icon(Icons.volume_up_rounded),
-                label: Text(
-                  widget.session.soundEnabled ? 'Listen' : 'Sound is off',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.tealDark,
-                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.6),
-                  disabledForegroundColor: AppColors.inkSoft,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+              child: PressableScale(
+                onTap: widget.session.soundEnabled ? _playPrompt : null,
+                child: FilledButton.tonalIcon(
+                  onPressed: widget.session.soundEnabled ? _playPrompt : null,
+                  icon: const Icon(Icons.volume_up_rounded),
+                  label: Text(
+                    widget.session.soundEnabled ? 'Listen' : 'Sound is off',
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.tealDark,
+                    disabledBackgroundColor: Colors.white.withValues(alpha: 0.6),
+                    disabledForegroundColor: AppColors.inkSoft,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ),
@@ -527,30 +551,36 @@ class _ResultCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: onTryAgain,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                child: PressableScale(
+                  onTap: onTryAgain,
+                  child: OutlinedButton(
+                    onPressed: onTryAgain,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
+                    child: const Text('Try again'),
                   ),
-                  child: const Text('Try again'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: FilledButton(
-                  onPressed: onNext,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.teal,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                child: PressableScale(
+                  onTap: onNext,
+                  child: FilledButton(
+                    onPressed: onNext,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.teal,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
+                    child: const Text('Next word'),
                   ),
-                  child: const Text('Next word'),
                 ),
               ),
             ],
@@ -558,16 +588,19 @@ class _ResultCard extends StatelessWidget {
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
-              key: const ValueKey('done-practicing-button'),
-              onPressed: onDone,
-              icon: const Icon(Icons.flag_rounded, size: 18),
-              label: const Text('Done practicing'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.inkSoft,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            child: PressableScale(
+              onTap: onDone,
+              child: OutlinedButton.icon(
+                key: const ValueKey('done-practicing-button'),
+                onPressed: onDone,
+                icon: const Icon(Icons.flag_rounded, size: 18),
+                label: const Text('Done practicing'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.inkSoft,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),

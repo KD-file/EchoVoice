@@ -1,12 +1,17 @@
 import '../utils/exceptions.dart';
+import 'audio_service.dart';
 
 /// Generates caregiver-facing feedback messages and tracks session-level
 /// performance state for the current feedback session.
 class FeedbackGenerator {
   double lastScore = 0.0;
   int streak = 0;
+  AudioService? _audio;
 
-  FeedbackGenerator();
+  FeedbackGenerator({AudioService? audio}) : _audio = audio;
+
+  /// Injects or replaces the audio service used by [playSound].
+  void setAudioService(AudioService audio) => _audio = audio;
 
   /// Produces a feedback message for [word] based on the normalized [score].
   /// Scores are expected to be within [0.0, 1.0].
@@ -39,16 +44,16 @@ class FeedbackGenerator {
     return 'Keep going! Let\u2019s try $word again. \u{1F504}';
   }
 
-  /// Plays an audio prompt or reward sound.
+  /// Plays an audio prompt or reward sound via the injected [AudioService].
   ///
-  /// This method is intentionally kept platform-agnostic to avoid binding
-  /// the core logic to a specific audio playback implementation. A real
-  /// platform integration can wrap this method in the UI layer.
-  void playSound(String name) {
+  /// Falls back to a no-op when no audio service is available (e.g. in tests).
+  Future<void> playSound(String name) async {
     if (name.trim().isEmpty) {
       throw const ValidationException('Audio asset name must not be empty.');
     }
-    // Placeholder implementation. A platform-specific audio player should
-    // supply the actual playback behavior in the application layer.
+    final audio = _audio;
+    if (audio != null) {
+      await audio.playSound(name);
+    }
   }
 }

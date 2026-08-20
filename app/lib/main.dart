@@ -4,5 +4,7 @@ import 'app.dart';
 import 'state/session_state.dart';
 
 void main() {
-  runApp(EchoVoiceApp(session: SessionState()));
+  WidgetsFlutterBinding.ensureInitialized();
+  final session = SessionState();
+  runApp(EchoVoiceApp(session: session));
 }

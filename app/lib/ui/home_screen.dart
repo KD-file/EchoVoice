@@ -4,6 +4,7 @@ import '../models/category.dart';
 import '../state/session_state.dart';
 import '../ui/app_theme.dart';
 import 'widgets/app_logo.dart';
+import 'widgets/pressable_scale.dart';
 
 /// Practice home: a welcome card and the grid of sound families. Tapping a
 /// family opens its word list.
@@ -18,10 +19,10 @@ class HomeScreen extends StatelessWidget {
 
     return ListView(
       key: const ValueKey('home-screen'),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
         _WelcomeCard(session: session),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         Text(
           'Choose a sound family',
           style: theme.textTheme.titleLarge,
@@ -44,8 +45,8 @@ class HomeScreen extends StatelessWidget {
             final aspect = constraints.maxWidth >= 900
                 ? 1.5
                 : constraints.maxWidth >= 620
-                    ? 1.2
-                    : 0.92;
+                    ? 1.1
+                    : 0.85;
             return GridView.count(
               crossAxisCount: columns,
               shrinkWrap: true,
@@ -54,24 +55,36 @@ class HomeScreen extends StatelessWidget {
               mainAxisSpacing: 14,
               childAspectRatio: aspect,
               children: [
-                for (final category in session.categories)
-                  _CategoryCard(
-                    category: category,
-                    progressLabel: _progressLabel(category),
-                    onTap: () {
-                      session.openCategory(category.id);
-                      ScaffoldMessenger.of(context)
-                        ..clearSnackBars()
-                        ..showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Opening ${category.name} \u2014 let\u2019s '
-                              'practice!',
+                for (var i = 0; i < session.categories.length; i++)
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: Duration(milliseconds: 350 + (i * 80).clamp(0, 500)),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) => Opacity(
+                      opacity: value.clamp(0.0, 1.0),
+                      child: Transform.translate(
+                        offset: Offset(0, 24 * (1 - value)),
+                        child: child,
+                      ),
+                    ),
+                    child: _CategoryCard(
+                      category: session.categories[i],
+                      progressLabel: _progressLabel(session.categories[i]),
+                      onTap: () {
+                        session.openCategory(session.categories[i].id);
+                        ScaffoldMessenger.of(context)
+                          ..clearSnackBars()
+                          ..showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Opening ${session.categories[i].name} \u2014 let\u2019s '
+                                'practice!',
+                              ),
+                              duration: const Duration(milliseconds: 1200),
                             ),
-                            duration: const Duration(milliseconds: 1200),
-                          ),
-                        );
-                    },
+                          );
+                      },
+                    ),
                   ),
               ],
             );
@@ -200,49 +213,52 @@ class _CategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(28),
-        child: Ink(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: category.colorLight,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: category.color.withValues(alpha: 0.35),
-              width: 2,
+    return PressableScale(
+      onTap: onTap,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Ink(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: category.colorLight,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: category.color.withValues(alpha: 0.35),
+                width: 2,
+              ),
             ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(category.emoji, style: const TextStyle(fontSize: 40)),
-              const SizedBox(height: 8),
-              Text(
-                category.name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: AppColors.ink,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(category.emoji, style: const TextStyle(fontSize: 40)),
+                const SizedBox(height: 8),
+                Text(
+                  category.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: AppColors.ink,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                category.tagline,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: category.color,
+                const SizedBox(height: 4),
+                Text(
+                  category.tagline,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: category.color,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                progressLabel,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.inkSoft,
+                const SizedBox(height: 8),
+                Text(
+                  progressLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.inkSoft,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

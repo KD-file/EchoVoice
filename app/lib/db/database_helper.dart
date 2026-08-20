@@ -115,6 +115,37 @@ class DatabaseHelper {
     }
   }
 
+  /// Retrieves all assessment records, most recent first. Used to restore
+  /// session state when the app restarts.
+  Future<List<Map<String, Object?>>> getAllRecords() async {
+    final db = await database;
+    try {
+      return await db.query(
+        'assessment_records',
+        orderBy: 'recorded_at DESC',
+      );
+    } on Exception catch (e) {
+      throw LocalStorageException(
+        'Failed to read all assessment records.',
+        cause: e,
+      );
+    }
+  }
+
+  /// Deletes every assessment record. Useful when the user resets their
+  /// progress.
+  Future<void> deleteAllRecords() async {
+    final db = await database;
+    try {
+      await db.delete('assessment_records');
+    } on Exception catch (e) {
+      throw LocalStorageException(
+        'Failed to delete all assessment records.',
+        cause: e,
+      );
+    }
+  }
+
   /// Closes the database connection and releases the resource. Should be
   /// called when the app is disposed to avoid leaking file handles.
   Future<void> close() async {
