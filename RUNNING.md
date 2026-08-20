@@ -13,12 +13,15 @@ Step-by-step guide to get the EchoVoice Flutter app running on your own machine.
 
 ```bash
 git clone https://github.com/KD-file/EchoVoice.git
-cd EchoVoice
+cd EchoVoice/app
 ```
 
 ## 3. Install dependencies
 
+All Flutter commands need to be run from inside the `app` folder, not the repo root.
+
 ```bash
+cd app
 flutter pub get
 ```
 
@@ -26,23 +29,24 @@ flutter pub get
 
 ### Android Studio
 
-1. `File → Open…` and select the `EchoVoice` folder (the folder that contains `pubspec.yaml`).
+1. `File → Open…` and select the `EchoVoice/app` folder (the folder that contains `pubspec.yaml`).
 2. Wait for the Gradle sync to finish (may take a few minutes the first time).
 3. The run target is `lib/main.dart` — confirm it appears in the run configuration dropdown.
 
 ### VS Code
 
-1. `File → Open Folder…` and select the `EchoVoice` folder.
+1. `File → Open Folder…` and select the `EchoVoice/app` folder.
 2. Install the **Flutter** and **Dart** extensions if you haven't.
 3. Press `F5` (or `Run → Start Debugging`) with `lib/main.dart` open.
 
 ## 5. Start an emulator
 
-**Android Studio:** open *Device Manager* (`Tools → Device Manager`) and press the ▶ button on an AVD.
+**Android Studio:** open _Device Manager_ (`Tools → Device Manager`) and press the ▶ button on an AVD.
 
 **Command line:**
 
 ```bash
+cd app
 flutter emulators            # list available AVDs
 flutter emulators --launch <id>   # start one, e.g. --launch Medium_Phone
 ```
@@ -53,28 +57,31 @@ flutter emulators --launch <id>   # start one, e.g. --launch Medium_Phone
 ## 6. Run the app
 
 ```bash
+cd app
 flutter run
 ```
 
 Or press the green **Run** button in your IDE.
 
 Once running:
+
 - `r` — hot reload
 - `R` — hot restart
 - `q` — quit
 
 ### Troubleshooting
 
-| Problem | Fix |
-|---------|-----|
-| `device 'emulator-5554' not found` | The emulator isn't running. Start it first (step 5). |
-| Gradle build takes long / fails | Make sure you have a stable internet connection for the first build (it downloads dependencies). |
-| App closes after a few seconds | Unlock the emulator screen and keep it on: `adb shell svc power stayon true`. |
-| `flutter: command not found` | Add Flutter's `bin` folder to your system `PATH`. |
+| Problem                            | Fix                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `device 'emulator-5554' not found` | The emulator isn't running. Start it first (step 5).                                             |
+| Gradle build takes long / fails    | Make sure you have a stable internet connection for the first build (it downloads dependencies). |
+| App closes after a few seconds     | Unlock the emulator screen and keep it on: `adb shell svc power stayon true`.                    |
+| `flutter: command not found`       | Add Flutter's `bin` folder to your system `PATH`.                                                |
 
 ## 7. Run the tests
 
 ```bash
+cd app
 flutter test
 ```
 
@@ -97,7 +104,7 @@ To use the **real** exported model:
 2. Copy the artifact into the app:
 
    ```bash
-   Copy-Item backend\runs\run1\tflite\echovoice_asr.tflite assets\models\echovoice_asr.tflite
+   Copy-Item backend\runs\run1\tflite\echovoice_asr.tflite app\assets\models\echovoice_asr.tflite
    ```
 
 3. Declare it in `pubspec.yaml` under `flutter: assets`:
