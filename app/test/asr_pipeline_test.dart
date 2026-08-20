@@ -101,7 +101,8 @@ void main() {
         final parts = key.split(':');
         final frame = int.parse(parts[0]);
         final bin = int.parse(parts[1]);
-        expect(result[frame * kEchoVoiceNumMelBins + bin], closeTo(expected, 0.05));
+        expect(result[frame * kEchoVoiceNumMelBins + bin],
+            closeTo(expected, 0.05));
       });
       // Sum of the full padded tensor, cross-checked against numpy.
       final total = result.fold<double>(0.0, (acc, v) => acc + v);
@@ -148,7 +149,8 @@ void main() {
         final parts = key.split(':');
         final frame = int.parse(parts[0]);
         final bin = int.parse(parts[1]);
-        expect(result[frame * kEchoVoiceNumMelBins + bin], closeTo(expected, 0.05));
+        expect(result[frame * kEchoVoiceNumMelBins + bin],
+            closeTo(expected, 0.05));
       });
       final total = result.fold<double>(0.0, (acc, v) => acc + v);
       expect(total, closeTo(-79620.8046875, 50));

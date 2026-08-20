@@ -73,8 +73,7 @@ class TfliteAsrModelRunner implements AsrModelRunner {
         _phonemeSet = phonemeSet;
 
   /// Number of expected input values: one per (max frame, mel bin) pair.
-  static const int _inputLength =
-      kEchoVoiceMaxFrames * kEchoVoiceNumMelBins;
+  static const int _inputLength = kEchoVoiceMaxFrames * kEchoVoiceNumMelBins;
 
   final Interpreter _interpreter;
   final PhonemeSet _phonemeSet;

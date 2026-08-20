@@ -400,7 +400,8 @@ class _CaregiverView extends StatelessWidget {
                 label: 'Average',
                 value: average == null ? '--' : '${(average * 100).round()}%',
               ),
-              _CaregiverStat(label: 'Attempts', value: '${session.records.length}'),
+              _CaregiverStat(
+                  label: 'Attempts', value: '${session.records.length}'),
               _CaregiverStat(label: 'Streak', value: '${session.streak}'),
             ],
           ),

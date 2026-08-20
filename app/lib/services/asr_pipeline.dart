@@ -249,8 +249,10 @@ class AcousticFeatureExtractor {
         for (var k = 0; k < len ~/ 2; k++) {
           final uRe = re[i + k];
           final uIm = im[i + k];
-          final vRe = re[i + k + len ~/ 2] * curRe - im[i + k + len ~/ 2] * curIm;
-          final vIm = re[i + k + len ~/ 2] * curIm + im[i + k + len ~/ 2] * curRe;
+          final vRe =
+              re[i + k + len ~/ 2] * curRe - im[i + k + len ~/ 2] * curIm;
+          final vIm =
+              re[i + k + len ~/ 2] * curIm + im[i + k + len ~/ 2] * curRe;
           re[i + k] = uRe + vRe;
           im[i + k] = uIm + vIm;
           re[i + k + len ~/ 2] = uRe - vRe;

@@ -103,7 +103,8 @@ void main() {
     expect(find.byKey(const ValueKey('record-button')), findsOneWidget);
   });
 
-  testWidgets('progress tab toggles learner and caregiver views', (tester) async {
+  testWidgets('progress tab toggles learner and caregiver views',
+      (tester) async {
     await onboard(tester);
 
     await tester.tap(find.text('Progress'));

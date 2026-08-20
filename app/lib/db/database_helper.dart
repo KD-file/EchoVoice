@@ -10,6 +10,7 @@ import '../utils/exceptions.dart';
 /// (and potentially done inconsistently) throughout the app.
 class DatabaseHelper {
   static const String _dbName = 'echovoice_progress.db';
+
   /// Bumped to 2 when the `phoneme_error_matrix` column was added to
   /// assessment_records (v1 -> v2 migration).
   static const int _dbVersion = 2;

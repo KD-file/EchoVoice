@@ -45,7 +45,8 @@ void main() {
 
     test('collapses consecutive repeats of the same symbol', () {
       // s s s _ k -> "s", "k"
-      final logits = _logitsForFrames([0, 0, 0, blank, 1], vocabSize: vocabSize);
+      final logits =
+          _logitsForFrames([0, 0, 0, blank, 1], vocabSize: vocabSize);
       expect(
         decodeCtcLogits(
           logits,
@@ -74,7 +75,8 @@ void main() {
     });
 
     test('returns an empty list when every frame is blank', () {
-      final logits = _logitsForFrames([blank, blank, blank], vocabSize: vocabSize);
+      final logits =
+          _logitsForFrames([blank, blank, blank], vocabSize: vocabSize);
       expect(
         decodeCtcLogits(
           logits,
@@ -89,7 +91,8 @@ void main() {
 
     test('handles leading and trailing blanks', () {
       // _ s _ _ -> "s"
-      final logits = _logitsForFrames([blank, 0, blank, blank], vocabSize: vocabSize);
+      final logits =
+          _logitsForFrames([blank, 0, blank, blank], vocabSize: vocabSize);
       expect(
         decodeCtcLogits(
           logits,
@@ -106,9 +109,41 @@ void main() {
       // Frames targeting a consonant and a vowel from the real phoneme set:
       // 'tʃ' (index 15), 'ʃ' (index 12), blank (index 34), 'æ' (index 27).
       final fullVocab = [
-        'p', 'b', 't', 'd', 'k', 'g', 'f', 'v', 'θ', 'ð', 's', 'z', 'ʃ',
-        'ʒ', 'h', 'tʃ', 'dʒ', 'm', 'n', 'ŋ', 'l', 'r', 'w', 'j', 'i', 'ɪ',
-        'e', 'æ', 'ʌ', 'ɑ', 'ɔ', 'o', 'u', 'ʊ', '<blank>',
+        'p',
+        'b',
+        't',
+        'd',
+        'k',
+        'g',
+        'f',
+        'v',
+        'θ',
+        'ð',
+        's',
+        'z',
+        'ʃ',
+        'ʒ',
+        'h',
+        'tʃ',
+        'dʒ',
+        'm',
+        'n',
+        'ŋ',
+        'l',
+        'r',
+        'w',
+        'j',
+        'i',
+        'ɪ',
+        'e',
+        'æ',
+        'ʌ',
+        'ɑ',
+        'ɔ',
+        'o',
+        'u',
+        'ʊ',
+        '<blank>',
       ];
       final logits = _logitsForFrames([15, 12, 34, 27], vocabSize: 35);
       expect(
