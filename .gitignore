@@ -1,0 +1,16 @@
+# Prevents accidental Flutter/build artifacts from being committed
+# if a command is ever run from the repo root instead of inside app/.
+/android/
+/ios/
+/windows/
+/web/
+/build/
+/.dart_tool/
+/.flutter-plugins-dependencies
+/.flutter-plugins
+/.packages
+/pubspec.lock
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
