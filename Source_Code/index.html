@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EchoVoice — Phoneme-Level Speech Assessment for Children</title>
+  <!-- jsPDF for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    /* ===== Reset ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f0f2f8;
+      --primary: #6c5ce7;
+      --primary-dark: #5a4bd1;
+      --primary-light: #a29bfe;
+      --accent: #fd79a8;
+      --green: #00b894;
+      --green-dark: #00a381;
+      --yellow: #fdcb6e;
+      --orange: #e17055;
+      --red: #d63031;
+      --blue: #74b9ff;
+      --text: #2d3436;
+      --text-light: #636e72;
+      --text-muted: #b2bec3;
+      --white: #ffffff;
+      --card-bg: #ffffff;
+      --border: #dfe6e9;
+      --radius: 18px;
+      --radius-sm: 12px;
+      --shadow: 0 4px 20px rgba(108,92,231,.10);
+      --shadow-lg: 0 8px 30px rgba(108,92,231,.15);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ===== Background Shapes ===== */
+    .bg-shapes { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .bg-shape {
+      position: absolute; border-radius: 50%; opacity: .06;
+      animation: drift 25s ease-in-out infinite alternate;
+    }
+    @keyframes drift {
+      0% { transform: translate(0,0) rotate(0deg) scale(1); }
+      100% { transform: translate(60px,-80px) rotate(45deg) scale(1.15); }
+    }
+
+    /* ===== Container ===== */
+    .app-wrapper { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+
+    /* ===== Header ===== */
+    .header {
+      text-align: center;
+      padding: 28px 20px 20px;
+      margin-bottom: 8px;
+    }
+    .header-logo {
+      font-size: 2.6rem; font-weight: 900;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -1px;
+    }
+    .header-tagline { font-size: 1rem; color: var(--text-light); margin-top: 4px; }
+    .header-authors {
+      margin-top: 10px; font-size: .78rem; color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ===== Navigation Tabs ===== */
+    .nav-tabs {
+      display: flex; gap: 6px;
+      background: var(--card-bg);
+      border-radius: 14px;
+      padding: 6px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+      overflow-x: auto;
+    }
+    .nav-tab {
+      flex: 1; min-width: 0;
+      padding: 12px 8px;
+      border: none; background: transparent;
+      border-radius: 10px;
+      font-size: .85rem; font-weight: 700;
+      color: var(--text-light);
+      cursor: pointer;
+      transition: all .25s;
+      white-space: nowrap;
+      text-align: center;
+    }
+    .nav-tab:hover { background: rgba(108,92,231,.06); color: var(--primary); }
+    .nav-tab.active {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: var(--white);
+      box-shadow: 0 4px 12px rgba(108,92,231,.3);
+    }
+
+    /* ===== Sections ===== */
+    .section { display: none; animation: fadeIn .3s ease; }
+    .section.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ===== Cards ===== */
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+    .card-title {
+      font-size: .82rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--primary);
+      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ===== Practice Tab ===== */
+    .category-selector {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .cat-btn {
+      padding: 8px 18px;
+      border-radius: 24px;
+      border: 2px solid var(--border);
+      background: transparent;
+      font-size: .85rem; font-weight: 600;
+      color: var(--text-light);
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .cat-btn:hover { border-color: var(--primary-light); color: var(--primary); }
+    .cat-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--white);
+    }
+
+    .word-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .word-card {
+      background: linear-gradient(135deg, #f8f9ff, #f0f2ff);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .25s;
+      position: relative;
+    }
+    .word-card:hover {
+      border-color: var(--primary-light);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(108,92,231,.12);
+    }
+    .word-card.selected {
+      border-color: var(--primary);
+      background: linear-gradient(135deg, #ede8ff, #e4dfff);
+      box-shadow: 0 4px 15px rgba(108,92,231,.2);
+    }
+    .word-card.tested {
+      border-color: var(--green);
+    }
+    .word-card .word-text { font-size: 1.2rem; font-weight: 800; color: var(--text); }
+    .word-card .word-ipa { font-size: .78rem; color: var(--text-light); margin-top: 4px; font-style: italic; }
+    .word-card .listen-icon {
+      position: absolute; top: 8px; right: 8px;
+      font-size: .9rem; cursor: pointer;
+      background: var(--primary);
+      color: white;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      border: none;
+      transition: transform .2s;
+    }
+    .word-card .listen-icon:hover { transform: scale(1.15); }
+
+    /* ===== Active Word Panel ===== */
+    .active-word-panel {
+      background: linear-gradient(135deg, var(--primary), #7c6cf0);
+      border-radius: var(--radius);
+      padding: 28px;
+      color: var(--white);
+      text-align: center;
+      margin-bottom: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .active-word-panel::before {
+      content: ''; position: absolute; top: -50px; right: -50px;
+      width: 150px; height: 150px; border-radius: 50%;
+      background: rgba(255,255,255,.07);
+    }
+    .active-word-panel .target-label {
+      font-size: .85rem; font-weight: 600; opacity: .8;
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .active-word-panel .target-word {
+      font-size: 2.4rem; font-weight: 900;
+    }
+    .active-word-panel .target-ipa {
+      font-size: 1.1rem; opacity: .7; margin-top: 6px; font-style: italic;
+    }
+    .listen-target-btn {
+      margin-top: 14px;
+      background: rgba(255,255,255,.2);
+      border: 2px solid rgba(255,255,255,.3);
+      color: var(--white);
+      padding: 10px 24px;
+      border-radius: 30px;
+      font-size: .95rem; font-weight: 700;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .listen-target-btn:hover { background: rgba(255,255,255,.35); }
+
+    /* ===== Mic Button ===== */
+    .mic-section { display: flex; flex-direction: column; align-items: center; margin: 22px 0; }
+    .mic-btn {
+      width: 110px; height: 110px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), #e84393);
+      color: var(--white);
+      font-size: 2.8rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 20px rgba(253,121,168,.35);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .mic-btn:hover { transform: scale(1.05); }
+    .mic-btn:active { transform: scale(.95); }
+    .mic-btn.recording {
+      animation: pulse-mic 1.2s ease-in-out infinite;
+      background: linear-gradient(135deg, var(--green), #00cec9);
+      box-shadow: 0 6px 20px rgba(0,184,148,.4);
+    }
+    @keyframes pulse-mic {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0,184,148,.35), 0 6px 20px rgba(0,184,148,.3); }
+      50%       { box-shadow: 0 0 0 16px rgba(0,184,148,0), 0 6px 20px rgba(0,184,148,.3); }
+    }
+    .mic-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .mic-status { margin-top: 12px; font-size: 1rem; font-weight: 700; color: var(--text-light); }
+    .mic-status.active { color: var(--green); }
+
+    /* ===== Result Panel ===== */
+    .result-panel { margin-top: 18px; }
+    .result-comparison {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+      margin-bottom: 16px;
+    }
+    .result-box {
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      text-align: center;
+    }
+    .result-box.target { background: #f0f2ff; }
+    .result-box.spoken { background: #f0fff4; }
+    .result-box .result-label {
+      font-size: .75rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--text-light); margin-bottom: 6px;
+    }
+    .result-box .result-value { font-size: 1.3rem; font-weight: 800; }
+
+    .metrics-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;
+    }
+    .metric-card {
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px 10px;
+      text-align: center;
+    }
+    .metric-card .metric-icon { font-size: 1.4rem; margin-bottom: 4px; }
+    .metric-card .metric-value {
+      font-size: 1.5rem; font-weight: 900;
+      color: var(--primary);
+    }
+    .metric-card .metric-value.good { color: var(--green); }
+    .metric-card .metric-value.warn { color: var(--orange); }
+    .metric-card .metric-value.bad { color: var(--red); }
+    .metric-card .metric-label {
+      font-size: .72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--text-light); margin-top: 2px;
+    }
+
+    .phoneme-breakdown {
+      margin-top: 16px;
+    }
+    .phoneme-row {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .phoneme-chip {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: .9rem; font-weight: 700;
+      color: var(--white);
+      min-width: 40px;
+    }
+    .phoneme-chip.correct { background: var(--green); }
+    .phoneme-chip.substitution { background: var(--orange); }
+    .phoneme-chip.deletion { background: var(--red); }
+    .phoneme-chip.insertion { background: var(--blue); }
+
+    .phoneme-legend {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: .78rem; color: var(--text-light);
+    }
+    .phoneme-legend span { display: flex; align-items: center; gap: 4px; }
+    .legend-dot {
+      width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+    }
+
+    /* ===== History / Sessions Tab ===== */
+    .session-table {
+      width: 100%; border-collapse: collapse;
+    }
+    .session-table th, .session-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: .88rem;
+    }
+    .session-table th {
+      font-weight: 700; color: var(--primary);
+      font-size: .78rem; text-transform: uppercase; letter-spacing: .5px;
+    }
+
+    /* ===== Report Tab ===== */
+    .report-summary {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px; margin-bottom: 20px;
+    }
+    .report-stat {
+      background: linear-gradient(135deg, #f8f9ff, #f0f2ff);
+      border-radius: var(--radius-sm);
+      padding: 20px 14px;
+      text-align: center;
+    }
+    .report-stat .r-icon { font-size: 2rem; }
+    .report-stat .r-value { font-size: 1.8rem; font-weight: 900; color: var(--primary); margin: 4px 0; }
+    .report-stat .r-label { font-size: .78rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+
+    .gen-pdf-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px;
+      border-radius: 30px;
+      border: none;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: var(--white);
+      font-size: 1rem; font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(108,92,231,.3);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .gen-pdf-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(108,92,231,.4); }
+
+    /* ===== About / Manuscript Tab ===== */
+    .manuscript-content {
+      font-size: .92rem;
+      line-height: 1.8;
+      color: var(--text);
+      max-height: 600px;
+      overflow-y: auto;
+      padding-right: 10px;
+    }
+    .manuscript-content h2 {
+      font-size: 1.2rem; font-weight: 800; color: var(--primary);
+      margin: 24px 0 10px;
+    }
+    .manuscript-content h3 {
+      font-size: 1rem; font-weight: 700; color: var(--text);
+      margin: 16px 0 8px;
+    }
+    .manuscript-content p {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+    .manuscript-content::-webkit-scrollbar { width: 6px; }
+    .manuscript-content::-webkit-scrollbar-track { background: var(--bg); border-radius: 4px; }
+    .manuscript-content::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: 4px; }
+
+    /* ===== Toast ===== */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: linear-gradient(135deg, var(--green), #00cec9);
+      color: var(--white);
+      padding: 14px 28px;
+      border-radius: 30px;
+      font-size: 1rem; font-weight: 700;
+      box-shadow: 0 6px 20px rgba(0,184,148,.3);
+      transition: transform .4s cubic-bezier(.68,-.55,.27,1.55);
+      z-index: 200; white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ===== Unsupported ===== */
+    .unsupported-banner {
+      background: var(--orange); color: var(--white);
+      text-align: center; padding: 16px; border-radius: var(--radius-sm);
+      font-weight: 600; margin-bottom: 16px;
+      display: none;
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 600px) {
+      .header-logo { font-size: 2rem; }
+      .word-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+      .result-comparison { grid-template-columns: 1fr; }
+      .active-word-panel .target-word { font-size: 1.8rem; }
+      .nav-tab { font-size: .75rem; padding: 10px 6px; }
+    }
+    @media (max-width: 400px) {
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Clear session btn */
+    .clear-btn {
+      padding: 8px 20px;
+      border-radius: 24px;
+      border: 2px solid var(--red);
+      background: transparent;
+      color: var(--red);
+      font-size: .85rem; font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .clear-btn:hover { background: var(--red); color: var(--white); }
+
+    .info-box {
+      background: linear-gradient(135deg, #f0f2ff, #ede8ff);
+      border-left: 4px solid var(--primary);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      font-size: .9rem;
+      color: var(--text);
+    }
+    .info-box strong { color: var(--primary); }
+
+    /* Child profile form */
+    .form-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .form-group { flex: 1; min-width: 150px; }
+    .form-group label { display: block; font-size: .8rem; font-weight: 700; color: var(--text-light); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 10px 14px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: .95rem;
+      background: var(--card-bg);
+      color: var(--text);
+      transition: border-color .2s;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--primary-light);
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-shapes" id="bgShapes"></div>
+
+<div class="app-wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">🎙️ EchoVoice</div>
+    <div class="header-tagline">Self-Supervised Acoustic Modeling for Phoneme-Level Error Detection in Children's Speech</div>
+    <div class="header-authors">
+      Nievera, K.D. &bull; Cerezo, K.A. &bull; Doctolero, M.J. &bull; Gonzales, R.Jr. &bull; Paglingayen, J.<br>
+      DMMMSU – South La Union Campus &bull; College of Computer Science &bull; October 2026
+    </div>
+  </div>
+
+  <!-- Unsupported banner -->
+  <div class="unsupported-banner" id="unsupported">
+    😔 Your browser doesn't support microphone recording. Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.
+  </div>
+  <div class="unsupported-banner" id="backendOffline" style="display:none;">
+    ⚠️ Can't reach the EchoVoice ASR backend at <code id="backendUrlLabel"></code>. Start it (see Documentation/README_backend.md) and refresh.
+  </div>
+
+  <!-- Navigation -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-tab="practice">🎯 Practice</button>
+    <button class="nav-tab" data-tab="history">📊 History</button>
+    <button class="nav-tab" data-tab="report">📄 Report</button>
+    <button class="nav-tab" data-tab="about">📖 About</button>
+  </div>
+
+  <!-- ==================== PRACTICE TAB ==================== -->
+  <div class="section active" id="section-practice">
+
+    <!-- Child Profile -->
+    <div class="card">
+      <div class="card-title">👤 Child Profile</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Child's Name</label>
+          <input type="text" id="childName" placeholder="e.g. Juan" />
+        </div>
+        <div class="form-group">
+          <label>Age</label>
+          <input type="number" id="childAge" min="3" max="17" placeholder="e.g. 6" />
+        </div>
+        <div class="form-group">
+          <label>Session Date</label>
+          <input type="date" id="sessionDate" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Selector -->
+    <div class="card">
+      <div class="card-title">📚 Word Categories</div>
+      <div class="category-selector" id="categorySelector"></div>
+    </div>
+
+    <!-- Word Grid -->
+    <div class="card">
+      <div class="card-title">🔤 Select a Word to Practice</div>
+      <div class="word-grid" id="wordGrid"></div>
+    </div>
+
+    <!-- Active Word Panel (hidden until word selected) -->
+    <div class="active-word-panel" id="activeWordPanel" style="display:none;">
+      <div class="target-label">🎯 Target Word</div>
+      <div class="target-word" id="targetWordDisplay">—</div>
+      <div class="target-ipa" id="targetIpaDisplay">—</div>
+      <button class="listen-target-btn" id="listenTargetBtn">🔊 Listen First</button>
+    </div>
+
+    <!-- Mic Section -->
+    <div class="mic-section" id="micSection" style="display:none;">
+      <button class="mic-btn" id="micBtn" aria-label="Start recording">🎙️</button>
+      <div class="mic-status" id="micStatus">Tap to speak the word!</div>
+    </div>
+
+    <!-- Result Panel -->
+    <div id="resultPanel" style="display:none;">
+      <div class="card result-panel">
+        <div class="card-title">📊 Analysis Result</div>
+
+        <div class="result-comparison">
+          <div class="result-box target">
+            <div class="result-label">🎯 Target</div>
+            <div class="result-value" id="resultTarget">—</div>
+          </div>
+          <div class="result-box spoken">
+            <div class="result-label">🗣️ You Said</div>
+            <div class="result-value" id="resultSpoken">—</div>
+          </div>
+        </div>
+
+        <div class="metrics-grid" id="metricsGrid"></div>
+
+        <div class="phoneme-breakdown" id="phonemeBreakdown">
+          <div class="card-title" style="margin-top:16px;">🔬 Phoneme Alignment</div>
+          <div class="phoneme-legend">
+            <span><span class="legend-dot" style="background:var(--green)"></span> Correct</span>
+            <span><span class="legend-dot" style="background:var(--orange)"></span> Substitution</span>
+            <span><span class="legend-dot" style="background:var(--red)"></span> Deletion</span>
+            <span><span class="legend-dot" style="background:var(--blue)"></span> Insertion</span>
+          </div>
+          <div class="phoneme-row" id="phonemeRow"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== HISTORY TAB ==================== -->
+  <div class="section" id="section-history">
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between;">
+        <span>📋 Session History</span>
+        <button class="clear-btn" id="clearHistoryBtn">🗑️ Clear All</button>
+      </div>
+      <div id="historyContent">
+        <p style="color:var(--text-muted); font-style:italic;">No attempts recorded yet. Practice some words first!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== REPORT TAB ==================== -->
+  <div class="section" id="section-report">
+    <div class="card">
+      <div class="card-title">📄 Assessment Report &amp; PDF Generator</div>
+
+      <div class="info-box">
+        <strong>EchoVoice Report Generator</strong> — Calculates aggregate <strong>Phoneme Error Rate (PER)</strong> and
+        <strong>Word Error Rate (WER)</strong> from all session attempts and generates a downloadable PDF report.
+        Metrics computed using Levenshtein dynamic programming alignment per the EchoVoice methodology.
+      </div>
+
+      <div class="report-summary" id="reportSummary">
+        <div class="report-stat">
+          <div class="r-icon">📝</div>
+          <div class="r-value" id="repTotalAttempts">0</div>
+          <div class="r-label">Total Attempts</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">🔤</div>
+          <div class="r-value" id="repUniqueWords">0</div>
+          <div class="r-label">Unique Words</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">🎯</div>
+          <div class="r-value" id="repAvgWER">—</div>
+          <div class="r-label">Avg Word Error Rate</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">🔬</div>
+          <div class="r-value" id="repAvgPER">—</div>
+          <div class="r-label">Avg Phoneme Error Rate</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">✅</div>
+          <div class="r-value" id="repAvgAccuracy">—</div>
+          <div class="r-label">Avg Accuracy</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">⭐</div>
+          <div class="r-value" id="repBestWord">—</div>
+          <div class="r-label">Best Word</div>
+        </div>
+      </div>
+
+      <div style="text-align:center; margin-top: 20px;">
+        <button class="gen-pdf-btn" id="genPdfBtn">📥 Generate PDF Report</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ABOUT / MANUSCRIPT TAB ==================== -->
+  <div class="section" id="section-about">
+    <div class="card">
+      <div class="card-title">📖 About EchoVoice — Research Manuscript</div>
+      <div class="manuscript-content" id="manuscriptContent"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// =========================================================================
+//  EchoVoice — Frontend + EchoVoice ASR Backend (fine-tuned HuBERT)
+// =========================================================================
+
+// ===== Backend Config =====
+// Point this at the EchoVoice ASR backend (see Documentation/README_backend.md). It serves
+// the HuBERT model fine-tuned on children's speech and turns a recorded
+// attempt into a transcript, which is then scored client-side exactly as
+// before (WER/PER/phoneme alignment).
+const ECHOVOICE_BACKEND_URL = 'http://localhost:8000';
+
+// ===== DOM Refs =====
+const $ = id => document.getElementById(id);
+const micBtn = $('micBtn');
+const micStatus = $('micStatus');
+const activeWordPanel = $('activeWordPanel');
+const targetWordDisplay = $('targetWordDisplay');
+const targetIpaDisplay = $('targetIpaDisplay');
+const listenTargetBtn = $('listenTargetBtn');
+const micSection = $('micSection');
+const resultPanel = $('resultPanel');
+const toastEl = $('toast');
+const wordGrid = $('wordGrid');
+const categorySelector = $('categorySelector');
+
+// ===== CMU-style IPA phoneme dictionary (simplified subset for GFTA words) =====
+const WORD_BANK = {
+  "Animals": [
+    { word: "cat", ipa: "/kæt/", phonemes: ["k","æ","t"] },
+    { word: "dog", ipa: "/dɒɡ/", phonemes: ["d","ɒ","ɡ"] },
+    { word: "fish", ipa: "/fɪʃ/", phonemes: ["f","ɪ","ʃ"] },
+    { word: "bird", ipa: "/bɜːrd/", phonemes: ["b","ɜː","r","d"] },
+    { word: "frog", ipa: "/frɒɡ/", phonemes: ["f","r","ɒ","ɡ"] },
+    { word: "duck", ipa: "/dʌk/", phonemes: ["d","ʌ","k"] },
+    { word: "horse", ipa: "/hɔːrs/", phonemes: ["h","ɔː","r","s"] },
+    { word: "sheep", ipa: "/ʃiːp/", phonemes: ["ʃ","iː","p"] },
+    { word: "mouse", ipa: "/maʊs/", phonemes: ["m","aʊ","s"] },
+    { word: "bear", ipa: "/bɛr/", phonemes: ["b","ɛ","r"] },
+  ],
+  "Body Parts": [
+    { word: "mouth", ipa: "/maʊθ/", phonemes: ["m","aʊ","θ"] },
+    { word: "nose", ipa: "/noʊz/", phonemes: ["n","oʊ","z"] },
+    { word: "thumb", ipa: "/θʌm/", phonemes: ["θ","ʌ","m"] },
+    { word: "teeth", ipa: "/tiːθ/", phonemes: ["t","iː","θ"] },
+    { word: "hand", ipa: "/hænd/", phonemes: ["h","æ","n","d"] },
+    { word: "foot", ipa: "/fʊt/", phonemes: ["f","ʊ","t"] },
+    { word: "knee", ipa: "/niː/", phonemes: ["n","iː"] },
+    { word: "head", ipa: "/hɛd/", phonemes: ["h","ɛ","d"] },
+    { word: "ear", ipa: "/ɪr/", phonemes: ["ɪ","r"] },
+    { word: "arm", ipa: "/ɑːrm/", phonemes: ["ɑː","r","m"] },
+  ],
+  "Objects": [
+    { word: "ball", ipa: "/bɔːl/", phonemes: ["b","ɔː","l"] },
+    { word: "cup", ipa: "/kʌp/", phonemes: ["k","ʌ","p"] },
+    { word: "spoon", ipa: "/spuːn/", phonemes: ["s","p","uː","n"] },
+    { word: "chair", ipa: "/tʃɛr/", phonemes: ["tʃ","ɛ","r"] },
+    { word: "door", ipa: "/dɔːr/", phonemes: ["d","ɔː","r"] },
+    { word: "book", ipa: "/bʊk/", phonemes: ["b","ʊ","k"] },
+    { word: "shoe", ipa: "/ʃuː/", phonemes: ["ʃ","uː"] },
+    { word: "house", ipa: "/haʊs/", phonemes: ["h","aʊ","s"] },
+    { word: "truck", ipa: "/trʌk/", phonemes: ["t","r","ʌ","k"] },
+    { word: "star", ipa: "/stɑːr/", phonemes: ["s","t","ɑː","r"] },
+  ],
+  "Actions": [
+    { word: "jump", ipa: "/dʒʌmp/", phonemes: ["dʒ","ʌ","m","p"] },
+    { word: "run", ipa: "/rʌn/", phonemes: ["r","ʌ","n"] },
+    { word: "sing", ipa: "/sɪŋ/", phonemes: ["s","ɪ","ŋ"] },
+    { word: "clap", ipa: "/klæp/", phonemes: ["k","l","æ","p"] },
+    { word: "smile", ipa: "/smaɪl/", phonemes: ["s","m","aɪ","l"] },
+    { word: "sleep", ipa: "/sliːp/", phonemes: ["s","l","iː","p"] },
+    { word: "throw", ipa: "/θroʊ/", phonemes: ["θ","r","oʊ"] },
+    { word: "push", ipa: "/pʊʃ/", phonemes: ["p","ʊ","ʃ"] },
+    { word: "drink", ipa: "/drɪŋk/", phonemes: ["d","r","ɪ","ŋ","k"] },
+    { word: "wash", ipa: "/wɒʃ/", phonemes: ["w","ɒ","ʃ"] },
+  ],
+  "Colors & Numbers": [
+    { word: "red", ipa: "/rɛd/", phonemes: ["r","ɛ","d"] },
+    { word: "blue", ipa: "/bluː/", phonemes: ["b","l","uː"] },
+    { word: "green", ipa: "/ɡriːn/", phonemes: ["ɡ","r","iː","n"] },
+    { word: "yellow", ipa: "/jɛloʊ/", phonemes: ["j","ɛ","l","oʊ"] },
+    { word: "three", ipa: "/θriː/", phonemes: ["θ","r","iː"] },
+    { word: "five", ipa: "/faɪv/", phonemes: ["f","aɪ","v"] },
+    { word: "six", ipa: "/sɪks/", phonemes: ["s","ɪ","k","s"] },
+    { word: "black", ipa: "/blæk/", phonemes: ["b","l","æ","k"] },
+    { word: "white", ipa: "/waɪt/", phonemes: ["w","aɪ","t"] },
+    { word: "orange", ipa: "/ɒrɪndʒ/", phonemes: ["ɒ","r","ɪ","n","dʒ"] },
+  ],
+  "Short Phrases": [
+    { word: "the cat", ipa: "/ðə kæt/", phonemes: ["ð","ə","k","æ","t"] },
+    { word: "big dog", ipa: "/bɪɡ dɒɡ/", phonemes: ["b","ɪ","ɡ","d","ɒ","ɡ"] },
+    { word: "red ball", ipa: "/rɛd bɔːl/", phonemes: ["r","ɛ","d","b","ɔː","l"] },
+    { word: "go home", ipa: "/ɡoʊ hoʊm/", phonemes: ["ɡ","oʊ","h","oʊ","m"] },
+    { word: "thank you", ipa: "/θæŋk juː/", phonemes: ["θ","æ","ŋ","k","j","uː"] },
+    { word: "come here", ipa: "/kʌm hɪr/", phonemes: ["k","ʌ","m","h","ɪ","r"] },
+    { word: "good night", ipa: "/ɡʊd naɪt/", phonemes: ["ɡ","ʊ","d","n","aɪ","t"] },
+    { word: "my name", ipa: "/maɪ neɪm/", phonemes: ["m","aɪ","n","eɪ","m"] },
+    { word: "let me see", ipa: "/lɛt miː siː/", phonemes: ["l","ɛ","t","m","iː","s","iː"] },
+    { word: "I love you", ipa: "/aɪ lʌv juː/", phonemes: ["aɪ","l","ʌ","v","j","uː"] },
+  ]
+};
+
+// ===== Grapheme-to-phoneme map (rule-based, simplified) =====
+const G2P = {
+  "th": ["θ"], "sh": ["ʃ"], "ch": ["tʃ"], "ng": ["ŋ"], "nk": ["ŋ","k"],
+  "wh": ["w"], "ph": ["f"], "ck": ["k"], "qu": ["k","w"], "dg": ["dʒ"],
+  "igh": ["aɪ"], "oo": ["uː"], "ee": ["iː"], "ea": ["iː"], "ou": ["aʊ"],
+  "ow": ["oʊ"], "ai": ["eɪ"], "ay": ["eɪ"], "oi": ["ɔɪ"], "oy": ["ɔɪ"],
+  "ar": ["ɑː","r"], "er": ["ɜː","r"], "ir": ["ɜː","r"], "or": ["ɔː","r"],
+  "ur": ["ɜː","r"], "aw": ["ɔː"], "au": ["ɔː"],
+  "a": ["æ"], "e": ["ɛ"], "i": ["ɪ"], "o": ["ɒ"], "u": ["ʌ"],
+  "b": ["b"], "c": ["k"], "d": ["d"], "f": ["f"], "g": ["ɡ"],
+  "h": ["h"], "j": ["dʒ"], "k": ["k"], "l": ["l"], "m": ["m"],
+  "n": ["n"], "p": ["p"], "r": ["r"], "s": ["s"], "t": ["t"],
+  "v": ["v"], "w": ["w"], "x": ["k","s"], "y": ["j"], "z": ["z"],
+};
+
+function wordToPhonemes(word) {
+  // Look up from word bank first
+  for (const cat of Object.values(WORD_BANK)) {
+    const found = cat.find(w => w.word.toLowerCase() === word.toLowerCase());
+    if (found) return found.phonemes;
+  }
+  // Fallback: rule-based G2P
+  const w = word.toLowerCase().replace(/[^a-z]/g, '');
+  const phonemes = [];
+  let i = 0;
+  while (i < w.length) {
+    let matched = false;
+    // Try 3-char, 2-char, then 1-char
+    for (let len = 3; len >= 1; len--) {
+      const sub = w.substr(i, len);
+      if (G2P[sub]) {
+        phonemes.push(...G2P[sub]);
+        i += len;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) i++; // skip unknown
+  }
+  return phonemes;
+}
+
+// ===== Levenshtein Alignment with backtrace =====
+function levenshteinAlign(ref, hyp) {
+  const n = ref.length;
+  const m = hyp.length;
+  // DP table
+  const dp = Array.from({length: n+1}, () => new Array(m+1).fill(0));
+  for (let i = 0; i <= n; i++) dp[i][0] = i;
+  for (let j = 0; j <= m; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (ref[i-1] === hyp[j-1]) {
+        dp[i][j] = dp[i-1][j-1];
+      } else {
+        dp[i][j] = 1 + Math.min(
+          dp[i-1][j-1], // substitution
+          dp[i-1][j],   // deletion
+          dp[i][j-1]    // insertion
+        );
+      }
+    }
+  }
+
+  // Backtrace
+  const alignment = [];
+  let i = n, j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && ref[i-1] === hyp[j-1]) {
+      alignment.unshift({ type: 'correct', ref: ref[i-1], hyp: hyp[j-1] });
+      i--; j--;
+    } else if (i > 0 && j > 0 && dp[i][j] === dp[i-1][j-1] + 1) {
+      alignment.unshift({ type: 'substitution', ref: ref[i-1], hyp: hyp[j-1] });
+      i--; j--;
+    } else if (i > 0 && dp[i][j] === dp[i-1][j] + 1) {
+      alignment.unshift({ type: 'deletion', ref: ref[i-1], hyp: null });
+      i--;
+    } else {
+      alignment.unshift({ type: 'insertion', ref: null, hyp: hyp[j-1] });
+      j--;
+    }
+  }
+
+  const subs = alignment.filter(a => a.type === 'substitution').length;
+  const dels = alignment.filter(a => a.type === 'deletion').length;
+  const ins  = alignment.filter(a => a.type === 'insertion').length;
+  const correct = alignment.filter(a => a.type === 'correct').length;
+
+  return { alignment, subs, dels, ins, correct, editDistance: dp[n][m] };
+}
+
+// ===== WER & PER Calculation =====
+function computeWER(refText, hypText) {
+  const refWords = refText.toLowerCase().replace(/[^a-z\s]/g,'').trim().split(/\s+/).filter(w=>w);
+  const hypWords = hypText.toLowerCase().replace(/[^a-z\s]/g,'').trim().split(/\s+/).filter(w=>w);
+  const result = levenshteinAlign(refWords, hypWords);
+  const wer = refWords.length > 0 ? ((result.subs + result.dels + result.ins) / refWords.length) * 100 : 0;
+  return { ...result, wer, refWords, hypWords };
+}
+
+function computePER(refPhonemes, hypPhonemes) {
+  const result = levenshteinAlign(refPhonemes, hypPhonemes);
+  const per = refPhonemes.length > 0 ? ((result.subs + result.dels + result.ins) / refPhonemes.length) * 100 : 0;
+  const accuracy = Math.max(0, 100 - per);
+  return { ...result, per, accuracy };
+}
+
+// ===== State =====
+let currentCategory = Object.keys(WORD_BANK)[0];
+let selectedWord = null;
+let isRecording = false;
+let isProcessing = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+let sessionHistory = JSON.parse(localStorage.getItem('echovoice_history') || '[]');
+
+// ===== Microphone / Recording Support Check =====
+const hasRecordingSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+if (!hasRecordingSupport) {
+  $('unsupported').style.display = 'block';
+  micBtn.disabled = true;
+}
+
+// ===== Backend Health Check =====
+async function checkBackend() {
+  $('backendUrlLabel').textContent = ECHOVOICE_BACKEND_URL;
+  try {
+    const res = await fetch(`${ECHOVOICE_BACKEND_URL}/api/health`, { method: 'GET' });
+    if (!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    $('backendOffline').style.display = 'none';
+    if (data.fine_tuned === false) {
+      showToast('⚠️ Backend is running the base model, not the child-speech fine-tuned checkpoint.');
+    }
+  } catch (e) {
+    $('backendOffline').style.display = 'block';
+  }
+}
+if (hasRecordingSupport) checkBackend();
+
+// ===== Send recorded audio to the EchoVoice ASR backend =====
+async function transcribeWithBackend(blob) {
+  const form = new FormData();
+  form.append('audio', blob, 'attempt.webm');
+
+  const res = await fetch(`${ECHOVOICE_BACKEND_URL}/api/transcribe`, {
+    method: 'POST',
+    body: form
+  });
+
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch (e) {}
+    throw new Error(detail);
+  }
+
+  const data = await res.json();
+  return data.transcript;
+}
+
+// ===== Tab Navigation =====
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    tab.classList.add('active');
+    $('section-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'history') renderHistory();
+    if (tab.dataset.tab === 'report') updateReportSummary();
+  });
+});
+
+// ===== Category Selector =====
+function renderCategories() {
+  categorySelector.innerHTML = '';
+  Object.keys(WORD_BANK).forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn' + (cat === currentCategory ? ' active' : '');
+    btn.textContent = cat;
+    btn.addEventListener('click', () => {
+      currentCategory = cat;
+      renderCategories();
+      renderWordGrid();
+    });
+    categorySelector.appendChild(btn);
+  });
+}
+
+// ===== Word Grid =====
+function renderWordGrid() {
+  wordGrid.innerHTML = '';
+  const words = WORD_BANK[currentCategory];
+  words.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'word-card';
+    if (selectedWord && selectedWord.word === item.word) card.classList.add('selected');
+    // Check if tested
+    if (sessionHistory.some(h => h.targetWord === item.word)) card.classList.add('tested');
+
+    card.innerHTML = `
+      <button class="listen-icon" title="Listen">🔊</button>
+      <div class="word-text">${item.word}</div>
+      <div class="word-ipa">${item.ipa}</div>
+    `;
+
+    // Listen button on card
+    card.querySelector('.listen-icon').addEventListener('click', (e) => {
+      e.stopPropagation();
+      speakWord(item.word);
+    });
+
+    // Select word
+    card.addEventListener('click', () => selectWord(item));
+    wordGrid.appendChild(card);
+  });
+}
+
+function selectWord(item) {
+  selectedWord = item;
+  renderWordGrid();
+  activeWordPanel.style.display = 'block';
+  micSection.style.display = 'flex';
+  resultPanel.style.display = 'none';
+  targetWordDisplay.textContent = item.word;
+  targetIpaDisplay.textContent = item.ipa;
+  activeWordPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ===== TTS =====
+function speakWord(word) {
+  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(word);
+  utter.rate = 0.8;
+  utter.pitch = 1.1;
+  utter.lang = 'en-US';
+  speechSynthesis.speak(utter);
+}
+
+listenTargetBtn.addEventListener('click', () => {
+  if (selectedWord) speakWord(selectedWord.word);
+});
+
+// ===== Mic Control =====
+micBtn.addEventListener('click', () => {
+  if (!hasRecordingSupport || !selectedWord || isProcessing) return;
+  if (isRecording) { stopRecording(); }
+  else { startRecording(); }
+});
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+
+    // Prefer a widely-supported container; MediaRecorder picks a sensible
+    // default codec (webm/opus in Chrome/Edge) if we don't force one.
+    const mimeCandidates = ['audio/webm', 'audio/ogg', 'audio/mp4'];
+    const mimeType = mimeCandidates.find(t => window.MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(track => track.stop());
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      handleRecordedAudio(blob);
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹️';
+    micStatus.textContent = 'Listening… Say the word!';
+    micStatus.classList.add('active');
+  } catch (err) {
+    isRecording = false;
+    showToast('🎤 Please allow microphone access!');
+  }
+}
+
+function stopRecording() {
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop(); // triggers onstop -> handleRecordedAudio
+  }
+}
+
+async function handleRecordedAudio(blob) {
+  if (blob.size < 500) {
+    micStatus.textContent = 'Tap to speak the word!';
+    micStatus.classList.remove('active');
+    showToast("🤔 Didn't hear anything. Try again!");
+    return;
+  }
+
+  isProcessing = true;
+  micBtn.textContent = '⏳';
+  micStatus.textContent = 'Analyzing with EchoVoice ASR…';
+
+  try {
+    const spokenText = await transcribeWithBackend(blob);
+    if (!spokenText) {
+      showToast("🤔 Didn't catch that. Try again!");
+    } else {
+      analyzeAttempt(spokenText);
+    }
+  } catch (err) {
+    $('backendOffline').style.display = 'block';
+    showToast('⚠️ Could not reach the ASR backend: ' + err.message);
+  } finally {
+    isProcessing = false;
+    micBtn.textContent = '🎙️';
+    micStatus.textContent = 'Tap to speak the word!';
+    micStatus.classList.remove('active');
+  }
+}
+
+// ===== Analysis Engine =====
+function analyzeAttempt(spokenText) {
+  if (!selectedWord) return;
+
+  const target = selectedWord.word;
+  const targetPhonemes = selectedWord.phonemes;
+  const spokenPhonemes = wordToPhonemes(spokenText);
+
+  // WER
+  const werResult = computeWER(target, spokenText);
+  // PER
+  const perResult = computePER(targetPhonemes, spokenPhonemes);
+
+  // Pronunciation accuracy score (Sacc formula from manuscript)
+  const Np = targetPhonemes.length;
+  const Sp = perResult.subs;
+  const Dp = perResult.dels;
+  const Ip = perResult.ins;
+  const Sacc = Math.max(0, ((Np - (Sp + Dp + Ip)) / Np) * 100);
+
+  // Display results
+  $('resultTarget').textContent = target;
+  $('resultSpoken').textContent = spokenText.toLowerCase();
+  resultPanel.style.display = 'block';
+
+  // Metrics grid
+  const colorClass = v => v <= 15 ? 'good' : v <= 40 ? 'warn' : 'bad';
+  const accColor = v => v >= 85 ? 'good' : v >= 60 ? 'warn' : 'bad';
+
+  $('metricsGrid').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-icon">🎯</div>
+      <div class="metric-value ${accColor(Sacc)}">${Sacc.toFixed(1)}%</div>
+      <div class="metric-label">Accuracy (S<sub>acc</sub>)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">🔤</div>
+      <div class="metric-value ${colorClass(werResult.wer)}">${werResult.wer.toFixed(1)}%</div>
+      <div class="metric-label">Word Error Rate</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">🔬</div>
+      <div class="metric-value ${colorClass(perResult.per)}">${perResult.per.toFixed(1)}%</div>
+      <div class="metric-label">Phoneme Error Rate</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">🔁</div>
+      <div class="metric-value">${Sp}</div>
+      <div class="metric-label">Substitutions</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">❌</div>
+      <div class="metric-value">${Dp}</div>
+      <div class="metric-label">Deletions</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">➕</div>
+      <div class="metric-value">${Ip}</div>
+      <div class="metric-label">Insertions</div>
+    </div>
+  `;
+
+  // Phoneme alignment chips
+  const phonemeRow = $('phonemeRow');
+  phonemeRow.innerHTML = '';
+  perResult.alignment.forEach(a => {
+    const chip = document.createElement('span');
+    chip.className = 'phoneme-chip ' + a.type;
+    if (a.type === 'correct') chip.textContent = a.ref;
+    else if (a.type === 'substitution') chip.textContent = `${a.ref}→${a.hyp}`;
+    else if (a.type === 'deletion') chip.textContent = `${a.ref} ✕`;
+    else if (a.type === 'insertion') chip.textContent = `+${a.hyp}`;
+    chip.title = a.type.charAt(0).toUpperCase() + a.type.slice(1);
+    phonemeRow.appendChild(chip);
+  });
+
+  resultPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Save to history
+  const entry = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    childName: $('childName').value || 'Unknown',
+    childAge: $('childAge').value || '—',
+    targetWord: target,
+    targetIpa: selectedWord.ipa,
+    spokenText: spokenText.toLowerCase(),
+    targetPhonemes: targetPhonemes,
+    spokenPhonemes: spokenPhonemes,
+    wer: werResult.wer,
+    per: perResult.per,
+    accuracy: Sacc,
+    subs: Sp,
+    dels: Dp,
+    ins: Ip,
+    alignment: perResult.alignment
+  };
+  sessionHistory.push(entry);
+  localStorage.setItem('echovoice_history', JSON.stringify(sessionHistory));
+
+  // Encouragement
+  if (Sacc >= 90) showToast('🌟 Perfect pronunciation!');
+  else if (Sacc >= 70) showToast('👏 Great job! Keep practicing!');
+  else if (Sacc >= 50) showToast('💪 Good try! Listen and try again!');
+  else showToast('🎧 Listen carefully and try once more!');
+
+  renderWordGrid(); // update tested state
+}
+
+// ===== History Rendering =====
+function renderHistory() {
+  const content = $('historyContent');
+  if (sessionHistory.length === 0) {
+    content.innerHTML = '<p style="color:var(--text-muted); font-style:italic;">No attempts recorded yet.</p>';
+    return;
+  }
+  let html = `<table class="session-table">
+    <thead><tr>
+      <th>Word</th><th>Spoken</th><th>WER</th><th>PER</th><th>Accuracy</th><th>S/D/I</th><th>Time</th>
+    </tr></thead><tbody>`;
+
+  [...sessionHistory].reverse().forEach(h => {
+    const time = new Date(h.timestamp).toLocaleTimeString();
+    const accColor = h.accuracy >= 85 ? 'var(--green)' : h.accuracy >= 60 ? 'var(--orange)' : 'var(--red)';
+    html += `<tr>
+      <td><strong>${h.targetWord}</strong></td>
+      <td>${h.spokenText}</td>
+      <td>${h.wer.toFixed(1)}%</td>
+      <td>${h.per.toFixed(1)}%</td>
+      <td style="color:${accColor}; font-weight:700;">${h.accuracy.toFixed(1)}%</td>
+      <td>${h.subs}/${h.dels}/${h.ins}</td>
+      <td style="font-size:.78rem; color:var(--text-muted);">${time}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  content.innerHTML = html;
+}
+
+$('clearHistoryBtn').addEventListener('click', () => {
+  if (confirm('Clear all session history?')) {
+    sessionHistory = [];
+    localStorage.removeItem('echovoice_history');
+    renderHistory();
+    showToast('🗑️ History cleared');
+  }
+});
+
+// ===== Report Summary =====
+function updateReportSummary() {
+  const h = sessionHistory;
+  $('repTotalAttempts').textContent = h.length;
+  const uniqueWords = new Set(h.map(e => e.targetWord));
+  $('repUniqueWords').textContent = uniqueWords.size;
+
+  if (h.length > 0) {
+    const avgWER = h.reduce((s,e) => s + e.wer, 0) / h.length;
+    const avgPER = h.reduce((s,e) => s + e.per, 0) / h.length;
+    const avgAcc = h.reduce((s,e) => s + e.accuracy, 0) / h.length;
+    $('repAvgWER').textContent = avgWER.toFixed(1) + '%';
+    $('repAvgPER').textContent = avgPER.toFixed(1) + '%';
+    $('repAvgAccuracy').textContent = avgAcc.toFixed(1) + '%';
+
+    // Best word
+    const wordAccs = {};
+    h.forEach(e => {
+      if (!wordAccs[e.targetWord]) wordAccs[e.targetWord] = [];
+      wordAccs[e.targetWord].push(e.accuracy);
+    });
+    let bestWord = '—', bestAcc = -1;
+    for (const [w, accs] of Object.entries(wordAccs)) {
+      const avg = accs.reduce((a,b)=>a+b,0)/accs.length;
+      if (avg > bestAcc) { bestAcc = avg; bestWord = w; }
+    }
+    $('repBestWord').textContent = bestWord;
+  } else {
+    $('repAvgWER').textContent = '—';
+    $('repAvgPER').textContent = '—';
+    $('repAvgAccuracy').textContent = '—';
+    $('repBestWord').textContent = '—';
+  }
+}
+
+// ===== PDF Generation =====
+$('genPdfBtn').addEventListener('click', generatePDF);
+
+function generatePDF() {
+  if (sessionHistory.length === 0) {
+    showToast('⚠️ No data to generate report!');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 18;
+  let y = 20;
+
+  // Colors
+  const purple = [108,92,231];
+  const dark = [45,52,54];
+  const gray = [99,110,114];
+  const green = [0,184,148];
+  const red = [214,48,49];
+  const orange = [225,112,85];
+
+  // Header
+  doc.setFillColor(...purple);
+  doc.rect(0, 0, pageW, 42, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(22);
+  doc.setFont('helvetica','bold');
+  doc.text('EchoVoice', pageW/2, 16, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica','normal');
+  doc.text('Self-Supervised Acoustic Modeling for Phoneme-Level Error Detection in Children\'s Speech', pageW/2, 24, { align: 'center' });
+  doc.setFontSize(7.5);
+  doc.text('Nievera, K.D. • Cerezo, K.A. • Doctolero, M.J. • Gonzales, R.Jr. • Paglingayen, J.', pageW/2, 30, { align: 'center' });
+  doc.text('DMMMSU – South La Union Campus • College of Computer Science • October 2026', pageW/2, 35, { align: 'center' });
+  y = 50;
+
+  // Child info
+  doc.setTextColor(...dark);
+  doc.setFontSize(13);
+  doc.setFont('helvetica','bold');
+  doc.text('Assessment Report', margin, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(...gray);
+  const childName = $('childName').value || 'Not specified';
+  const childAge = $('childAge').value || 'Not specified';
+  const sessDate = $('sessionDate').value || new Date().toISOString().slice(0,10);
+  doc.text(`Child: ${childName}     Age: ${childAge}     Session Date: ${sessDate}`, margin, y);
+  y += 4;
+  doc.text(`Report Generated: ${new Date().toLocaleString()}     Total Attempts: ${sessionHistory.length}`, margin, y);
+  y += 10;
+
+  // Divider
+  doc.setDrawColor(...purple);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  // Summary Statistics
+  const h = sessionHistory;
+  const avgWER = h.reduce((s,e) => s + e.wer, 0) / h.length;
+  const avgPER = h.reduce((s,e) => s + e.per, 0) / h.length;
+  const avgAcc = h.reduce((s,e) => s + e.accuracy, 0) / h.length;
+  const totalSubs = h.reduce((s,e) => s + e.subs, 0);
+  const totalDels = h.reduce((s,e) => s + e.dels, 0);
+  const totalIns = h.reduce((s,e) => s + e.ins, 0);
+  const uniqueWords = new Set(h.map(e => e.targetWord));
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...dark);
+  doc.text('Aggregate Performance Metrics', margin, y);
+  y += 8;
+
+  // Summary boxes
+  const boxW = (pageW - 2*margin - 2*8) / 3;
+  const drawMetricBox = (x, yPos, label, value, color) => {
+    doc.setFillColor(245,245,255);
+    doc.roundedRect(x, yPos, boxW, 28, 3, 3, 'F');
+    doc.setFontSize(16);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(...color);
+    doc.text(value, x + boxW/2, yPos + 13, { align: 'center' });
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(...gray);
+    doc.text(label, x + boxW/2, yPos + 22, { align: 'center' });
+  };
+
+  drawMetricBox(margin, y, 'Avg Accuracy (Sacc)', avgAcc.toFixed(1) + '%', avgAcc >= 85 ? green : avgAcc >= 60 ? orange : red);
+  drawMetricBox(margin + boxW + 8, y, 'Avg Word Error Rate (WER)', avgWER.toFixed(1) + '%', avgWER <= 15 ? green : avgWER <= 40 ? orange : red);
+  drawMetricBox(margin + 2*(boxW+8), y, 'Avg Phoneme Error Rate (PER)', avgPER.toFixed(1) + '%', avgPER <= 15 ? green : avgPER <= 40 ? orange : red);
+  y += 36;
+
+  // Formulas reference
+  doc.setFontSize(8);
+  doc.setFont('helvetica','italic');
+  doc.setTextColor(...gray);
+  doc.text('WER = (Sw + Dw + Iw) / Nw × 100%     |     PER = (Sp + Dp + Ip) / Np × 100%     |     Sacc = max(0, (Np - (Sp+Dp+Ip)) / Np) × 100%', margin, y);
+  y += 6;
+  doc.text(`Total Phoneme Errors — Substitutions: ${totalSubs}   Deletions: ${totalDels}   Insertions: ${totalIns}   |   Unique Words Tested: ${uniqueWords.size}`, margin, y);
+  y += 10;
+
+  // Divider
+  doc.setDrawColor(220,220,230);
+  doc.line(margin, y, pageW - margin, y);
+  y += 6;
+
+  // Per-word summary
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...dark);
+  doc.text('Per-Word Performance Summary', margin, y);
+  y += 6;
+
+  // Build per-word data
+  const wordData = {};
+  h.forEach(e => {
+    if (!wordData[e.targetWord]) wordData[e.targetWord] = { ipa: e.targetIpa, attempts: [] };
+    wordData[e.targetWord].attempts.push(e);
+  });
+
+  const tableBody = Object.entries(wordData).map(([word, data]) => {
+    const att = data.attempts;
+    const avgA = att.reduce((s,e)=>s+e.accuracy,0)/att.length;
+    const avgW = att.reduce((s,e)=>s+e.wer,0)/att.length;
+    const avgP = att.reduce((s,e)=>s+e.per,0)/att.length;
+    const tS = att.reduce((s,e)=>s+e.subs,0);
+    const tD = att.reduce((s,e)=>s+e.dels,0);
+    const tI = att.reduce((s,e)=>s+e.ins,0);
+    return [word, data.ipa, att.length.toString(), avgA.toFixed(1)+'%', avgW.toFixed(1)+'%', avgP.toFixed(1)+'%', `${tS}/${tD}/${tI}`];
+  });
+
+  doc.autoTable({
+    startY: y,
+    head: [['Word', 'IPA', 'Attempts', 'Avg Acc', 'Avg WER', 'Avg PER', 'S/D/I']],
+    body: tableBody,
+    margin: { left: margin, right: margin },
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: purple, textColor: [255,255,255], fontStyle: 'bold', fontSize: 7.5 },
+    alternateRowStyles: { fillColor: [248,249,255] },
+    didParseCell: function(data) {
+      if (data.section === 'body' && data.column.index === 3) {
+        const val = parseFloat(data.cell.raw);
+        if (val >= 85) data.cell.styles.textColor = green;
+        else if (val >= 60) data.cell.styles.textColor = orange;
+        else data.cell.styles.textColor = red;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  // Check for page overflow
+  if (y > 250) { doc.addPage(); y = 20; }
+
+  // Detailed attempt log
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...dark);
+  doc.text('Detailed Attempt Log', margin, y);
+  y += 6;
+
+  const detailBody = h.map(e => {
+    const time = new Date(e.timestamp).toLocaleTimeString();
+    return [e.targetWord, e.spokenText, e.accuracy.toFixed(1)+'%', e.wer.toFixed(1)+'%', e.per.toFixed(1)+'%', `${e.subs}/${e.dels}/${e.ins}`, time];
+  });
+
+  doc.autoTable({
+    startY: y,
+    head: [['Target', 'Spoken', 'Accuracy', 'WER', 'PER', 'S/D/I', 'Time']],
+    body: detailBody,
+    margin: { left: margin, right: margin },
+    styles: { fontSize: 7.5, cellPadding: 2.5 },
+    headStyles: { fillColor: purple, textColor: [255,255,255], fontStyle: 'bold', fontSize: 7 },
+    alternateRowStyles: { fillColor: [248,249,255] },
+    didParseCell: function(data) {
+      if (data.section === 'body' && data.column.index === 2) {
+        const val = parseFloat(data.cell.raw);
+        if (val >= 85) data.cell.styles.textColor = green;
+        else if (val >= 60) data.cell.styles.textColor = orange;
+        else data.cell.styles.textColor = red;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+  y = doc.lastAutoTable.finalY + 10;
+
+  // Check for page overflow for interpretation
+  if (y > 230) { doc.addPage(); y = 20; }
+
+  // Interpretation / Clinical Notes
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...dark);
+  doc.text('Clinical Interpretation Notes', margin, y);
+  y += 7;
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(...gray);
+
+  const notes = [];
+  if (avgPER <= 15) notes.push('• Average PER is within the target threshold of <15%, indicating strong phoneme-level accuracy.');
+  else if (avgPER <= 30) notes.push('• Average PER is moderate (15–30%). Targeted phoneme practice is recommended.');
+  else notes.push('• Average PER exceeds 30%, suggesting significant phoneme-level difficulties. Clinical consultation advised.');
+
+  if (avgWER <= 20) notes.push('• Average WER is within the acceptable target of <20%, indicating good word-level recognition.');
+  else notes.push('• Average WER exceeds 20%. Further evaluation of articulatory patterns is recommended.');
+
+  if (totalSubs > totalDels + totalIns) notes.push('• Substitutions are the predominant error type, suggesting articulatory placement difficulties.');
+  if (totalDels > totalSubs) notes.push('• Deletions are elevated, indicating possible phoneme omission patterns.');
+  if (totalIns > 0) notes.push(`• ${totalIns} insertion(s) detected, which may indicate extraneous vocalizations.`);
+
+  notes.push('');
+  notes.push('Note: Metrics computed using Levenshtein Dynamic Programming Alignment per the EchoVoice methodology.');
+  notes.push('Phoneme Error Rate formula: PER = (Sp + Dp + Ip) / Np × 100%');
+  notes.push('Word Error Rate formula: WER = (Sw + Dw + Iw) / Nw × 100%');
+  notes.push('Pronunciation Accuracy: Sacc = max(0, (Np − (Sp + Dp + Ip)) / Np) × 100%');
+
+  notes.forEach(n => {
+    doc.text(n, margin, y);
+    y += 4.5;
+  });
+
+  y += 4;
+  // ICC reference
+  doc.setFontSize(8);
+  doc.setFont('helvetica','italic');
+  doc.text('ICC Agreement Scale Reference — Below 0.50: Poor | 0.50–0.75: Moderate | 0.75–0.90: Good | Above 0.90: Excellent', margin, y);
+  y += 8;
+
+  // Footer
+  doc.setDrawColor(...purple);
+  doc.setLineWidth(0.3);
+  doc.line(margin, y, pageW - margin, y);
+  y += 5;
+  doc.setFontSize(7);
+  doc.setTextColor(...gray);
+  doc.text('EchoVoice — DMMMSU South La Union Campus, College of Computer Science', margin, y);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, pageW - margin, y, { align: 'right' });
+
+  // Save
+  const fileName = `EchoVoice_Report_${childName.replace(/\s+/g,'_')}_${sessDate}.pdf`;
+  doc.save(fileName);
+  showToast('📥 PDF Report downloaded!');
+}
+
+// ===== Manuscript Content =====
+function renderManuscript() {
+  const content = $('manuscriptContent');
+  content.innerHTML = `
+    <h2>ECHOVOICE: Self-Supervised Acoustic Modeling for Phoneme-Level Error Detection in Children's Speech</h2>
+    <p style="font-size:.82rem; color:var(--text-light);">
+      <strong>Authors:</strong> Kurt Daryl M. Nievera, Kate Ann H. Cerezo, Maica Jenish M. Doctolero,
+      Rolando Jr. T. Gonzales, Jefferson S. Paglingayen<br>
+      <strong>Institution:</strong> Don Mariano Marcos Memorial State University, South La Union Campus,
+      College of Computer Science, Agoo, La Union<br>
+      <strong>Degree:</strong> Bachelor of Science in Computer Science &bull; October 2026<br>
+      <strong>Adviser:</strong> Dr. Clarisa V. Albarillo
+    </p>
+
+    <h2>Abstract</h2>
+    <p>Developing accurate automatic speech recognition (ASR) systems for pediatric speech remains a critical challenge in machine learning due to severe acoustic mismatches, high pitch variance, and limited public pediatric speech corpora. Standard commercial language models often mask phonetic deviations via orthographic autocorrection, making them unsuitable for fine-grained articulatory assessment.</p>
+    <p>This study introduces EchoVoice, a self-supervised deep learning acoustic modeling pipeline tailored for pediatric speech processing and phoneme-level error detection. EchoVoice fine-tunes a self-supervised Hidden-Unit BERT (HuBERT) architecture using data augmentation techniques, including SpecAugment, pitch modification, and ambient noise injection. Acoustic frame probabilities are mapped directly to target International Phonetic Alphabet (IPA) tokens via Connectionist Temporal Classification (CTC) loss and evaluated using Levenshtein dynamic alignment.</p>
+    <p>The model's performance is measured using Word Error Rate (WER), Phoneme Error Rate (PER), precision, recall, and F1-score across clean and noisy test partitions. Statistical agreement between model-generated phoneme scores and independent clinical perceptual ratings is validated using the Two-Way Random-Effects Intraclass Correlation Coefficient (ICC(2,1)).</p>
+    <p><strong>Keywords:</strong> automatic speech recognition, self-supervised learning, HuBERT, phoneme error detection, acoustic modeling</p>
+
+    <h2>Chapter 1: Introduction</h2>
+    <h3>Situation Analysis</h3>
+    <p>Automatic Speech Recognition (ASR) technology has experienced rapid architectural advancement over the past decade, shifting from traditional Gaussian Mixture Models and Hidden Markov Models (GMM-HMMs) to end-to-end deep neural networks and self-supervised transformer representations. While modern foundation models achieve near-human transcription fidelity when evaluated on adult speech, adapting these systems to children's speech remains one of the most persistent and structural challenges in speech-processing machine learning.</p>
+    <p>Standard ASR models trained predominantly on adult acoustic data exhibit catastrophic performance degradation when deployed on pediatric speech inputs. This failure is fundamentally rooted in severe acoustic, anatomical, and behavioral domain mismatches. Pediatric speech features higher fundamental frequencies (F0), shorter vocal tract lengths leading to significantly shifted formant profiles (F1, F2, F3), undeveloped articulatory motor control, and extreme intra- and inter-speaker acoustic variability.</p>
+    <p>To bridge these global, national, and local research gaps, this study presents EchoVoice, a specialized self-supervised deep learning acoustic modeling pipeline. EchoVoice utilizes the HuBERT (Hidden-Unit BERT) architecture, a state-of-the-art self-supervised framework that uses offline cluster-based masked prediction targets to learn continuous acoustic representations.</p>
+
+    <h3>Statement of the Objectives</h3>
+    <p>The primary objective of this study is to design, develop, and evaluate EchoVoice, a self-supervised deep learning acoustic modeling pipeline using fine-tuned HuBERT for automated, phoneme-level error detection and pronunciation assessment in children's speech.</p>
+    <p>Specifically, the study aims to:</p>
+    <ul style="padding-left:20px; margin-bottom:12px;">
+      <li>Fine-tune a pre-trained HuBERT self-supervised acoustic model on pediatric speech corpora</li>
+      <li>Develop an automated phoneme alignment and scoring engine utilizing frame-level probability projections and Levenshtein dynamic programming alignment</li>
+      <li>Evaluate the model's technical acoustic performance in terms of PER, WER, precision, recall, and F1-score</li>
+      <li>Validate the model's automated scoring accuracy against the perceptual ratings of a licensed Speech-Language Pathologist using the Intraclass Correlation Coefficient (ICC)</li>
+    </ul>
+
+    <h2>Chapter 2: Methodology</h2>
+    <h3>Research Design</h3>
+    <p>This study adopts a quantitative-experimental and descriptive research design, structured within an iterative machine learning development life cycle. The machine learning pipeline operationalizes this design via transfer learning using the HuBERT architecture, leveraging self-supervised acoustic frame representations pre-trained on masked prediction targets.</p>
+
+    <h3>Key Formulas</h3>
+    <p><strong>CTC Loss:</strong> ℒ<sub>CTC</sub> = −ln P(Y|X), where X represents the input sequence of acoustic frames and Y represents the ground-truth sequence of canonical target phonemes.</p>
+    <p><strong>Pronunciation Accuracy:</strong> S<sub>acc</sub> = max(0, (N<sub>p</sub> − (S<sub>p</sub> + D<sub>p</sub> + I<sub>p</sub>)) / N<sub>p</sub>) × 100%</p>
+    <p><strong>PER:</strong> PER = (S<sub>p</sub> + D<sub>p</sub> + I<sub>p</sub>) / N<sub>p</sub> × 100%</p>
+    <p><strong>WER:</strong> WER = (S<sub>w</sub> + D<sub>w</sub> + I<sub>w</sub>) / N<sub>w</sub> × 100%</p>
+
+    <h3>Data Augmentation</h3>
+    <p>Three data augmentation techniques are applied: (1) Time and frequency masking via SpecAugment, (2) Stochastic pitch-shifting between −3.0 and +4.0 semitones, and (3) Ambient background noise mixing at SNR ranging from 0–15 dB.</p>
+
+    <h3>Model Architecture</h3>
+    <p>The primary acoustic engine is built upon the HuBERT architecture. The base HuBERT encoder processes raw audio waveforms into 20 ms acoustic frames using a CNN temporal encoder followed by a 12-layer transformer stack. Frame representations are projected onto a linear classification layer mapping to an IPA phoneme vocabulary subset, optimized using CTC Loss.</p>
+
+    <h3>Clinical Validation</h3>
+    <p>Inter-rater reliability and clinical agreement are measured using the Intraclass Correlation Coefficient ICC(2,1). Target: ICC > 0.75. Ratings below 0.50 indicate poor agreement, 0.50–0.75 moderate, 0.75–0.90 good, and above 0.90 excellent.</p>
+
+    <h3>Dataset</h3>
+    <p>Primary dataset: PERCEPT-GFTA corpus (Benway et al., 2022) from TalkBank — 350 talkers aged 6–17. Local validation: Growth Journey Learning Center Inc., Agoo, La Union — 5 pediatric participants with ASD-related speech sound difficulties, each performing 30 target words from GFTA (150 audio samples total).</p>
+
+    <h3>Ethical Considerations</h3>
+    <p>All data handling adheres strictly to the Philippine Data Privacy Act of 2012 (R.A. 10173) and the 2022 National Ethical Guidelines for Research Involving Human Participants (NEGRIHP). Audio waveforms are stripped of metadata and tagged with pseudonymized identifiers. All samples stored on AES-256 encrypted volumes with TLS/SSL transfer protocols.</p>
+  `;
+}
+
+// ===== Toast =====
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2800);
+}
+
+// ===== Background shapes =====
+(function() {
+  const c = $('bgShapes');
+  const colors = ['#6c5ce7','#fd79a8','#00b894','#74b9ff','#a29bfe'];
+  for (let i = 0; i < 8; i++) {
+    const s = document.createElement('div');
+    s.className = 'bg-shape';
+    const size = 100 + Math.random() * 250;
+    s.style.width = size + 'px';
+    s.style.height = size + 'px';
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    s.style.background = colors[i % colors.length];
+    s.style.animationDuration = (15 + Math.random() * 20) + 's';
+    s.style.animationDelay = (Math.random() * 10) + 's';
+    c.appendChild(s);
+  }
+})();
+
+// ===== Init =====
+$('sessionDate').valueAsDate = new Date();
+renderCategories();
+renderWordGrid();
+renderManuscript();
+
+</script>
+</body>
+</html>

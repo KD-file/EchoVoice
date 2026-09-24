@@ -1,0 +1,38 @@
+{
+  "description": "Sample API payloads for the EchoVoice backend (Source_Code/app.py). Matches Documentation/07_data_dictionary.md section 3.",
+  "endpoints": [
+    { "method": "GET", "path": "/api/health" },
+    { "method": "POST", "path": "/api/transcribe", "content_type": "multipart/form-data" }
+  ],
+  "GET /api/health": {
+    "response_200": {
+      "status": "ok",
+      "device": "cuda",
+      "model_source": "C:/path/to/hubert-bcs",
+      "fine_tuned": true
+    },
+    "response_200_fallback": {
+      "status": "ok",
+      "device": "cpu",
+      "model_source": "facebook/hubert-large-ls960-ft",
+      "fine_tuned": false
+    }
+  },
+  "POST /api/transcribe": {
+    "request": {
+      "content_type": "multipart/form-data",
+      "field": { "name": "audio", "value": "<binary webm/ogg/wav/m4a clip>", "description": "Recorded child attempt; any container ffmpeg/soundfile can decode" }
+    },
+    "response_200": {
+      "transcript": "kaet",
+      "model_source": "C:/path/to/hubert-bcs",
+      "fine_tuned": true
+    },
+    "response_400": {
+      "detail": "Empty audio upload."
+    },
+    "response_400_undecodable": {
+      "detail": "Could not decode audio: <exception text>"
+    }
+  }
+}

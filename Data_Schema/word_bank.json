@@ -1,0 +1,74 @@
+{
+  "Animals": [
+    { "word": "cat", "ipa": "/kæt/", "phonemes": ["k", "æ", "t"] },
+    { "word": "dog", "ipa": "/dɒɡ/", "phonemes": ["d", "ɒ", "ɡ"] },
+    { "word": "fish", "ipa": "/fɪʃ/", "phonemes": ["f", "ɪ", "ʃ"] },
+    { "word": "bird", "ipa": "/bɜːrd/", "phonemes": ["b", "ɜː", "r", "d"] },
+    { "word": "frog", "ipa": "/frɒɡ/", "phonemes": ["f", "r", "ɒ", "ɡ"] },
+    { "word": "duck", "ipa": "/dʌk/", "phonemes": ["d", "ʌ", "k"] },
+    { "word": "horse", "ipa": "/hɔːrs/", "phonemes": ["h", "ɔː", "r", "s"] },
+    { "word": "sheep", "ipa": "/ʃiːp/", "phonemes": ["ʃ", "iː", "p"] },
+    { "word": "mouse", "ipa": "/maʊs/", "phonemes": ["m", "aʊ", "s"] },
+    { "word": "bear", "ipa": "/bɛr/", "phonemes": ["b", "ɛ", "r"] }
+  ],
+  "Body Parts": [
+    { "word": "mouth", "ipa": "/maʊθ/", "phonemes": ["m", "aʊ", "θ"] },
+    { "word": "nose", "ipa": "/noʊz/", "phonemes": ["n", "oʊ", "z"] },
+    { "word": "thumb", "ipa": "/θʌm/", "phonemes": ["θ", "ʌ", "m"] },
+    { "word": "teeth", "ipa": "/tiːθ/", "phonemes": ["t", "iː", "θ"] },
+    { "word": "hand", "ipa": "/hænd/", "phonemes": ["h", "æ", "n", "d"] },
+    { "word": "foot", "ipa": "/fʊt/", "phonemes": ["f", "ʊ", "t"] },
+    { "word": "knee", "ipa": "/niː/", "phonemes": ["n", "iː"] },
+    { "word": "head", "ipa": "/hɛd/", "phonemes": ["h", "ɛ", "d"] },
+    { "word": "ear", "ipa": "/ɪr/", "phonemes": ["ɪ", "r"] },
+    { "word": "arm", "ipa": "/ɑːrm/", "phonemes": ["ɑː", "r", "m"] }
+  ],
+  "Objects": [
+    { "word": "ball", "ipa": "/bɔːl/", "phonemes": ["b", "ɔː", "l"] },
+    { "word": "cup", "ipa": "/kʌp/", "phonemes": ["k", "ʌ", "p"] },
+    { "word": "spoon", "ipa": "/spuːn/", "phonemes": ["s", "p", "uː", "n"] },
+    { "word": "chair", "ipa": "/tʃɛr/", "phonemes": ["tʃ", "ɛ", "r"] },
+    { "word": "door", "ipa": "/dɔːr/", "phonemes": ["d", "ɔː", "r"] },
+    { "word": "book", "ipa": "/bʊk/", "phonemes": ["b", "ʊ", "k"] },
+    { "word": "shoe", "ipa": "/ʃuː/", "phonemes": ["ʃ", "uː"] },
+    { "word": "house", "ipa": "/haʊs/", "phonemes": ["h", "aʊ", "s"] },
+    { "word": "truck", "ipa": "/trʌk/", "phonemes": ["t", "r", "ʌ", "k"] },
+    { "word": "star", "ipa": "/stɑːr/", "phonemes": ["s", "t", "ɑː", "r"] }
+  ],
+  "Actions": [
+    { "word": "jump", "ipa": "/dʒʌmp/", "phonemes": ["dʒ", "ʌ", "m", "p"] },
+    { "word": "run", "ipa": "/rʌn/", "phonemes": ["r", "ʌ", "n"] },
+    { "word": "sing", "ipa": "/sɪŋ/", "phonemes": ["s", "ɪ", "ŋ"] },
+    { "word": "clap", "ipa": "/klæp/", "phonemes": ["k", "l", "æ", "p"] },
+    { "word": "smile", "ipa": "/smaɪl/", "phonemes": ["s", "m", "aɪ", "l"] },
+    { "word": "sleep", "ipa": "/sliːp/", "phonemes": ["s", "l", "iː", "p"] },
+    { "word": "throw", "ipa": "/θroʊ/", "phonemes": ["θ", "r", "oʊ"] },
+    { "word": "push", "ipa": "/pʊʃ/", "phonemes": ["p", "ʊ", "ʃ"] },
+    { "word": "drink", "ipa": "/drɪŋk/", "phonemes": ["d", "r", "ɪ", "ŋ", "k"] },
+    { "word": "wash", "ipa": "/wɒʃ/", "phonemes": ["w", "ɒ", "ʃ"] }
+  ],
+  "Colors & Numbers": [
+    { "word": "red", "ipa": "/rɛd/", "phonemes": ["r", "ɛ", "d"] },
+    { "word": "blue", "ipa": "/bluː/", "phonemes": ["b", "l", "uː"] },
+    { "word": "green", "ipa": "/ɡriːn/", "phonemes": ["ɡ", "r", "iː", "n"] },
+    { "word": "yellow", "ipa": "/jɛloʊ/", "phonemes": ["j", "ɛ", "l", "oʊ"] },
+    { "word": "three", "ipa": "/θriː/", "phonemes": ["θ", "r", "iː"] },
+    { "word": "five", "ipa": "/faɪv/", "phonemes": ["f", "aɪ", "v"] },
+    { "word": "six", "ipa": "/sɪks/", "phonemes": ["s", "ɪ", "k", "s"] },
+    { "word": "black", "ipa": "/blæk/", "phonemes": ["b", "l", "æ", "k"] },
+    { "word": "white", "ipa": "/waɪt/", "phonemes": ["w", "aɪ", "t"] },
+    { "word": "orange", "ipa": "/ɒrɪndʒ/", "phonemes": ["ɒ", "r", "ɪ", "n", "dʒ"] }
+  ],
+  "Short Phrases": [
+    { "word": "the cat", "ipa": "/ðə kæt/", "phonemes": ["ð", "ə", "k", "æ", "t"] },
+    { "word": "big dog", "ipa": "/bɪɡ dɒɡ/", "phonemes": ["b", "ɪ", "ɡ", "d", "ɒ", "ɡ"] },
+    { "word": "red ball", "ipa": "/rɛd bɔːl/", "phonemes": ["r", "ɛ", "d", "b", "ɔː", "l"] },
+    { "word": "go home", "ipa": "/ɡoʊ hoʊm/", "phonemes": ["ɡ", "oʊ", "h", "oʊ", "m"] },
+    { "word": "thank you", "ipa": "/θæŋk juː/", "phonemes": ["θ", "æ", "ŋ", "k", "j", "uː"] },
+    { "word": "come here", "ipa": "/kʌm hɪr/", "phonemes": ["k", "ʌ", "m", "h", "ɪ", "r"] },
+    { "word": "good night", "ipa": "/ɡʊd naɪt/", "phonemes": ["ɡ", "ʊ", "d", "n", "aɪ", "t"] },
+    { "word": "my name", "ipa": "/maɪ neɪm/", "phonemes": ["m", "aɪ", "n", "eɪ", "m"] },
+    { "word": "let me see", "ipa": "/lɛt miː siː/", "phonemes": ["l", "ɛ", "t", "m", "iː", "s", "iː"] },
+    { "word": "I love you", "ipa": "/aɪ lʌv juː/", "phonemes": ["aɪ", "l", "ʌ", "v", "j", "uː"] }
+  ]
+}

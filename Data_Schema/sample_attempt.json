@@ -1,0 +1,27 @@
+{
+  "description": "One sample attempt as persisted to localStorage['echovoice_history'] by index.html. The deployed app has no database; this flattened JSON is the physical form of the ATTEMPT + PHONEME_ALIGNMENT + CHILD entities in Documentation/06_erd.md.",
+  "storageKey": "echovoice_history",
+  "entry": {
+    "id": 1732500000000,
+    "timestamp": "2026-09-25T10:15:00.000Z",
+    "childName": "Juan",
+    "childAge": "6",
+    "targetWord": "cat",
+    "targetIpa": "/kæt/",
+    "spokenText": "kaet",
+    "targetPhonemes": ["k", "æ", "t"],
+    "spokenPhonemes": ["k", "ae", "t"],
+    "wer": 100,
+    "per": 33.3,
+    "accuracy": 66.7,
+    "subs": 1,
+    "dels": 0,
+    "ins": 0,
+    "alignment": [
+      { "type": "correct", "ref": "k", "hyp": "k" },
+      { "type": "substitution", "ref": "æ", "hyp": "ae" },
+      { "type": "correct", "ref": "t", "hyp": "t" }
+    ]
+  },
+  "recommendedAddition": "Prepend the ASR_MODEL fields (model_source / fine_tuned) echoed by the /api/transcribe response to each entry, per Documentation/07_data_dictionary.md section 2 note."
+}

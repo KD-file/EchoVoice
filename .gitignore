@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environment
+.venv/
+
+# Fine-tuned model checkpoint (large; downloaded separately)
+hubert-bcs/
+
+# Machine-specific environment configuration (committed: echovoice.env.example)
+Build_Config_Scripts/echovoice.env
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
