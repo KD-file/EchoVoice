@@ -25,7 +25,10 @@ fine-tuned checkpoint from the Colab training notebook.
 import io
 import logging
 import os
+import sqlite3
 import tempfile
+import uuid
+from typing import Optional
 
 import librosa
 import numpy as np
@@ -33,7 +36,7 @@ import soundfile as sf
 import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from transformers import AutoModelForCTC, AutoProcessor
 
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +61,51 @@ TARGET_SAMPLE_RATE = 16000
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ECHOVOICE_CORS_ORIGINS", "*").split(",")]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# SQLite database that stores child profiles (and, going forward, sessions and
+# attempts per Data_Schema/schema.sql). Override with the ECHOVOICE_DB_PATH
+# env var to keep the file elsewhere.
+DB_PATH = os.environ.get(
+    "ECHOVOICE_DB_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "echovoice.db"),
+)
+
+
+def _get_db_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _init_db():
+    """Create profile/session tables (subset of Data_Schema/schema.sql)."""
+    with _get_db_conn() as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS child (
+                child_id  TEXT PRIMARY KEY,
+                name      TEXT DEFAULT 'Unknown',
+                age_years INTEGER
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS session (
+                session_id   TEXT PRIMARY KEY,
+                child_id     TEXT NOT NULL REFERENCES child(child_id),
+                session_date TEXT DEFAULT (date('now')),
+                created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_session_child ON session(child_id)"
+        )
+
+
+_init_db()
 
 
 def _load_model():
@@ -107,6 +155,21 @@ class HealthResponse(BaseModel):
     device: str
     model_source: str
     fine_tuned: bool
+
+
+class ProfileSaveRequest(BaseModel):
+    child_id: Optional[str] = None
+    name: str
+    age_years: Optional[int] = Field(None, ge=0, le=20)
+    session_date: Optional[str] = None
+
+
+class ProfileResponse(BaseModel):
+    child_id: str
+    name: str
+    age_years: Optional[int] = None
+    session_id: Optional[str] = None
+    session_date: Optional[str] = None
 
 
 def _decode_audio(raw_bytes: bytes) -> np.ndarray:
@@ -174,6 +237,104 @@ async def transcribe(audio: UploadFile = File(...)):
         model_source=MODEL_SOURCE,
         fine_tuned=USING_FINE_TUNED,
     )
+
+
+@app.post("/api/profile", response_model=ProfileResponse)
+def save_profile(req: ProfileSaveRequest):
+    """Create or update a child profile and (optionally) record a session."""
+    name = (req.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Profile name is required.")
+
+    conn = _get_db_conn()
+    try:
+        with conn:
+            if req.child_id:
+                row = conn.execute(
+                    "SELECT child_id FROM child WHERE child_id = ?",
+                    (req.child_id,),
+                ).fetchone()
+                if row is None:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Child '{req.child_id}' not found.",
+                    )
+                child_id = req.child_id
+                conn.execute(
+                    "UPDATE child SET name = ?, age_years = ? WHERE child_id = ?",
+                    (name, req.age_years, child_id),
+                )
+            else:
+                child_id = uuid.uuid4().hex
+                conn.execute(
+                    "INSERT INTO child (child_id, name, age_years) VALUES (?, ?, ?)",
+                    (child_id, name, req.age_years),
+                )
+
+            session_id = None
+            if req.session_date:
+                row = conn.execute(
+                    "SELECT session_id FROM session WHERE child_id = ? AND session_date = ? "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (child_id, req.session_date),
+                ).fetchone()
+                if row:
+                    session_id = row["session_id"]
+                else:
+                    session_id = uuid.uuid4().hex
+                    conn.execute(
+                        "INSERT INTO session (session_id, child_id, session_date) VALUES (?, ?, ?)",
+                        (session_id, child_id, req.session_date),
+                    )
+    finally:
+        conn.close()
+
+    return ProfileResponse(
+        child_id=child_id,
+        name=name,
+        age_years=req.age_years,
+        session_id=session_id,
+        session_date=req.session_date,
+    )
+
+
+@app.get("/api/profile", response_model=ProfileResponse)
+def get_profile():
+    """Return the most recently created child profile plus latest session."""
+    conn = _get_db_conn()
+    try:
+        row = conn.execute("SELECT * FROM child ORDER BY rowid DESC LIMIT 1").fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="No profile saved yet.")
+
+        sess = conn.execute(
+            "SELECT session_id, session_date FROM session WHERE child_id = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (row["child_id"],),
+        ).fetchone()
+
+        return ProfileResponse(
+            child_id=row["child_id"],
+            name=row["name"],
+            age_years=row["age_years"],
+            session_id=sess["session_id"] if sess else None,
+            session_date=sess["session_date"] if sess else None,
+        )
+    finally:
+        conn.close()
+
+
+@app.get("/api/profiles")
+def list_profiles():
+    """List all saved child profiles (id, name, age)."""
+    conn = _get_db_conn()
+    try:
+        rows = conn.execute(
+            "SELECT child_id, name, age_years FROM child ORDER BY rowid DESC"
+        ).fetchall()
+        return {"profiles": [dict(r) for r in rows]}
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

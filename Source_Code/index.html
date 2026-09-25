@@ -477,6 +477,48 @@
       outline: none;
       border-color: var(--primary-light);
     }
+    .save-profile-btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: #fff;
+      background: var(--primary);
+      transition: background .2s, transform .1s;
+    }
+    .save-profile-btn:hover { background: var(--primary-light); }
+    .save-profile-btn:active { transform: scale(.97); }
+    .random-hint { font-size: .85rem; color: var(--text-muted); margin: 0; }
+    .random-btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: #fff;
+      background: var(--accent);
+      transition: background .2s, transform .1s;
+    }
+    .random-btn.secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+    .random-btn:hover { filter: brightness(1.1); }
+    .random-btn:active { transform: scale(.97); }
+    .custom-word-input {
+      flex: 1; min-width: 180px;
+      padding: 10px 14px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: .95rem;
+      background: var(--card-bg);
+      color: var(--text);
+      transition: border-color .2s;
+    }
+    .custom-word-input:focus { outline: none; border-color: var(--primary-light); }
   </style>
 </head>
 <body>
@@ -531,12 +573,37 @@
           <input type="date" id="sessionDate" />
         </div>
       </div>
+      <div class="form-row" style="align-items:center;">
+        <button class="save-profile-btn" id="saveProfileBtn" type="button">💾 Save Profile</button>
+        <span id="profileSaveMsg" style="font-size:.8rem; color:var(--text-muted);"></span>
+      </div>
     </div>
 
     <!-- Category Selector -->
     <div class="card">
       <div class="card-title">📚 Word Categories</div>
       <div class="category-selector" id="categorySelector"></div>
+    </div>
+
+    <!-- Random Word Practice -->
+    <div class="card">
+      <div class="card-title">🎲 Random Word Practice</div>
+      <p class="random-hint">EchoVoice picks a surprise word and says it aloud — listen carefully and speak it back! Your speech is transcribed to text and compared to the target.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <button class="random-btn" id="randomWordBtn">🎲 Pick a Random Word</button>
+        <button class="random-btn secondary" id="randomHearAgainBtn">🔊 Hear It Again</button>
+      </div>
+    </div>
+
+    <!-- Custom Word Practice -->
+    <div class="card">
+      <div class="card-title">✍️ Custom Word Practice</div>
+      <p class="random-hint">Type any word or short phrase — EchoVoice speaks it aloud for the child to listen, then transcribes the attempt and scores it.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; align-items:center;">
+        <input type="text" id="customWordInput" class="custom-word-input" placeholder="e.g. airplane" />
+        <button class="random-btn" id="customWordBtn">▶️ Say It Aloud</button>
+        <button class="random-btn secondary" id="customHearAgainBtn">🔊 Hear It Again</button>
+      </div>
     </div>
 
     <!-- Word Grid -->
@@ -910,6 +977,54 @@ async function checkBackend() {
 }
 if (hasRecordingSupport) checkBackend();
 
+// ===== Profile persistence (backend) =====
+let currentChildId = localStorage.getItem('echovoice_child_id') || null;
+
+async function saveProfileToBackend() {
+  const name = $('childName').value.trim();
+  const ageVal = $('childAge').value.trim();
+  const sessionDate = $('sessionDate').value;
+  if (!name) { showToast('⚠️ Enter the child\'s name first.'); return; }
+  const payload = {
+    name: name,
+    age_years: ageVal ? Number(ageVal) : null,
+    session_date: sessionDate || null
+  };
+  if (currentChildId) payload.child_id = currentChildId;
+  try {
+    const res = await fetch(`${ECHOVOICE_BACKEND_URL}/api/profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(((await res.json()).detail) || res.statusText);
+    const data = await res.json();
+    currentChildId = data.child_id;
+    localStorage.setItem('echovoice_child_id', currentChildId);
+    $('profileSaveMsg').textContent = '✔ Profile saved to backend (' + new Date().toLocaleTimeString() + ')';
+    showToast('💾 Profile saved to backend.');
+  } catch (e) {
+    $('profileSaveMsg').textContent = '✖ Save failed';
+    showToast('⚠️ Could not save profile: ' + e.message);
+  }
+}
+
+async function loadProfileFromBackend() {
+  try {
+    const res = await fetch(`${ECHOVOICE_BACKEND_URL}/api/profile`, { method: 'GET' });
+    if (!res.ok) return;
+    const data = await res.json();
+    currentChildId = data.child_id;
+    localStorage.setItem('echovoice_child_id', currentChildId);
+    $('childName').value = data.name || '';
+    if (data.age_years != null) $('childAge').value = data.age_years;
+    if (data.session_date) $('sessionDate').value = data.session_date;
+  } catch (e) { /* backend offline → keep whatever is in the fields */ }
+}
+
+$('saveProfileBtn').addEventListener('click', saveProfileToBackend);
+if (hasRecordingSupport) loadProfileFromBackend();
+
 // ===== Send recorded audio to the EchoVoice ASR backend =====
 async function transcribeWithBackend(blob) {
   const form = new FormData();
@@ -997,6 +1112,74 @@ function selectWord(item) {
   targetIpaDisplay.textContent = item.ipa;
   activeWordPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+
+// ===== Random Word Practice =====
+function pickRandomWord() {
+  const words = WORD_BANK[currentCategory];
+  const tested = new Set(sessionHistory.map(h => h.targetWord));
+  const untested = words.filter(w => !tested.has(w.word));
+  const pool = untested.length ? untested : words;
+  const item = pool[Math.floor(Math.random() * pool.length)];
+  selectWord(item);
+  setTimeout(() => speakWord(item.word), 250);
+  showToast(`🎲 Random word picked: "${item.word}" — listen and speak it back!`);
+}
+
+$('randomWordBtn').addEventListener('click', () => {
+  if (isRecording || isProcessing) return;
+  pickRandomWord();
+});
+
+$('randomHearAgainBtn').addEventListener('click', () => {
+  if (selectedWord) speakWord(selectedWord.word);
+});
+
+// ===== Custom Word Practice =====
+function phonemesToIpa(phonemes) {
+  return '/' + phonemes.join(' ') + '/';
+}
+
+function useCustomWord(word) {
+  const trimmed = (word || '').trim().replace(/\s+/g, ' ');
+  if (!trimmed) { showToast('⚠️ Type a word or phrase first.'); return false; }
+
+  let bankMatch = null;
+  for (const cat of Object.values(WORD_BANK)) {
+    const f = cat.find(w => w.word.toLowerCase() === trimmed.toLowerCase());
+    if (f) { bankMatch = f; break; }
+  }
+
+  const phonemes = bankMatch ? bankMatch.phonemes : wordToPhonemes(trimmed);
+  selectedWord = {
+    word: trimmed,
+    ipa: bankMatch ? bankMatch.ipa : phonemesToIpa(phonemes),
+    phonemes: phonemes
+  };
+  renderWordGrid();
+  activeWordPanel.style.display = 'block';
+  micSection.style.display = 'flex';
+  resultPanel.style.display = 'none';
+  targetWordDisplay.textContent = selectedWord.word;
+  targetIpaDisplay.textContent = selectedWord.ipa;
+  setTimeout(() => speakWord(selectedWord.word), 200);
+  activeWordPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return true;
+}
+
+$('customWordBtn').addEventListener('click', () => {
+  if (isRecording || isProcessing) return;
+  useCustomWord($('customWordInput').value);
+});
+
+$('customWordInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !isRecording && !isProcessing) {
+    useCustomWord($('customWordInput').value);
+  }
+});
+
+$('customHearAgainBtn').addEventListener('click', () => {
+  if (selectedWord) speakWord(selectedWord.word);
+});
 
 // ===== TTS =====
 function speakWord(word) {

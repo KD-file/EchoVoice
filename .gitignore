@@ -12,6 +12,9 @@ hubert-bcs/
 # Machine-specific environment configuration (committed: echovoice.env.example)
 Build_Config_Scripts/echovoice.env
 
+# Runtime SQLite database (recreated on startup)
+Source_Code/echovoice.db
+
 # OS junk
 .DS_Store
 Thumbs.db
