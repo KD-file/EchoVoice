@@ -43,16 +43,49 @@ PDF report.
 
    Copy `Build_Config_Scripts/echovoice.env.example` to
    `Build_Config_Scripts/echovoice.env` and adjust the model path, CORS
-   origins, and port. `run_backend.ps1` loads this file automatically.
+   origins, port, and database path. `run_backend.ps1` loads this file
+   automatically. Child profiles are saved to `Source_Code/echovoice.db` (a
+   SQLite file) unless `ECHOVOICE_DB_PATH` is overridden.
 
-4. **Run the backend**
+4. **Start the backend** (FastAPI ASR service on `http://localhost:8000`)
 
    ```powershell
    .\Build_Config_Scripts\run_backend.ps1
    ```
 
-5. **Open the frontend** — serve `Source_Code/index.html` (e.g. VS Code Live
-   Server on `http://localhost:5500`) and press the mic button.
+   Verify it: open `http://localhost:8000/api/health`.
+
+5. **Serve the frontend** (single-page app on `http://localhost:5500`)
+
+   > The frontend is a static `index.html` and does not need a build step —
+   > just serve the `Source_Code` folder with any static file server, e.g.
+   > VS Code Live Server or:
+
+   ```powershell
+   python -m http.server 5500 -d .\Source_Code
+   ```
+
+   Then open `http://localhost:5500/index.html` in Chrome/Edge. The page
+   checks the backend at startup and shows a banner if it can't reach it.
+
+### Run the frontend only (no backend)
+
+While the ASR backend is still being completed, you can preview and work on the
+UI without it. Everything that runs in the browser still works: word bank,
+category/word selection, TTS ("listen" buttons), Random Word and Custom Word
+modes, plus History and PDF report generation from `localStorage`.
+
+```powershell
+python -m http.server 5500 -d .\Source_Code
+```
+
+Open `http://localhost:5500/index.html`.
+
+> ⚠️ **Limitations without the backend:** recording an attempt will show the
+> "Can't reach the EchoVoice ASR backend" banner and the attempt won't be
+> transcribed or scored. Same for saving the child profile — "💾 Save Profile"
+> needs the running backend. The page keeps working; those two features simply
+> wait for the backend.
 
 ## API
 
@@ -60,6 +93,9 @@ PDF report.
 |---|---|
 | `GET /api/health` | Service + model status (`device`, `model_source`, `fine_tuned`) |
 | `POST /api/transcribe` | Multipart `audio` upload → `{ "transcript", "model_source", "fine_tuned" }` |
+| `POST /api/profile` | Create/update a child profile (`{ name, age_years?, session_date?, child_id? }`), records a session |
+| `GET /api/profile` | Latest saved child profile + latest session |
+| `GET /api/profiles` | List all saved child profiles |
 
 ## Configuration
 
@@ -69,6 +105,7 @@ All settings are environment variables (see `Build_Config_Scripts/echovoice.env`
 |---|---|---|
 | `ECHOVOICE_MODEL_DIR` | `./hubert-bcs` | Fine-tuned checkpoint path |
 | `ECHOVOICE_CORS_ORIGINS` | `*` | Allowed frontend origins |
+| `ECHOVOICE_DB_PATH` | `./Source_Code/echovoice.db` | SQLite database for saved child profiles |
 | `PORT` | `8000` | Backend listen port |
 
 ## Documentation
