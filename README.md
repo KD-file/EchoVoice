@@ -81,11 +81,6 @@ python -m http.server 5500 -d .\Source_Code
 
 Open `http://localhost:5500/index.html`.
 
-> ⚠️ **Limitations without the backend:** recording an attempt will show the
-> "Can't reach the EchoVoice ASR backend" banner and the attempt won't be
-> transcribed or scored. Same for saving the child profile — "💾 Save Profile"
-> needs the running backend. The page keeps working; those two features simply
-> wait for the backend.
 
 ## API
 
