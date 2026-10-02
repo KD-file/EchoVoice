@@ -1,0 +1,1181 @@
+
+// =========================================================================
+//  EchoVoice — Frontend + EchoVoice ASR Backend (fine-tuned HuBERT)
+// =========================================================================
+
+// ===== Backend Config =====
+// Point this at the EchoVoice ASR backend (see Documentation/README_backend.md). It serves
+// the HuBERT model fine-tuned on children's speech and turns a recorded
+// attempt into a transcript, which is then scored client-side exactly as
+// before (WER/PER/phoneme alignment).
+const ECHOVOICE_BACKEND_URL = 'http://localhost:8000';
+
+// ===== DOM Refs =====
+const $ = id => document.getElementById(id);
+const micBtn = $('micBtn');
+const micStatus = $('micStatus');
+const activeWordPanel = $('activeWordPanel');
+const targetWordDisplay = $('targetWordDisplay');
+const targetIpaDisplay = $('targetIpaDisplay');
+const listenTargetBtn = $('listenTargetBtn');
+const micSection = $('micSection');
+const resultPanel = $('resultPanel');
+const toastEl = $('toast');
+const wordGrid = $('wordGrid');
+const categorySelector = $('categorySelector');
+
+// ===== CMU-style IPA phoneme dictionary (simplified subset for GFTA words) =====
+const WORD_BANK = {
+  "Animals": [
+    { word: "cat", ipa: "/kæt/", phonemes: ["k","æ","t"] },
+    { word: "dog", ipa: "/dɒɡ/", phonemes: ["d","ɒ","ɡ"] },
+    { word: "fish", ipa: "/fɪʃ/", phonemes: ["f","ɪ","ʃ"] },
+    { word: "bird", ipa: "/bɜːrd/", phonemes: ["b","ɜː","r","d"] },
+    { word: "frog", ipa: "/frɒɡ/", phonemes: ["f","r","ɒ","ɡ"] },
+    { word: "duck", ipa: "/dʌk/", phonemes: ["d","ʌ","k"] },
+    { word: "horse", ipa: "/hɔːrs/", phonemes: ["h","ɔː","r","s"] },
+    { word: "sheep", ipa: "/ʃiːp/", phonemes: ["ʃ","iː","p"] },
+    { word: "mouse", ipa: "/maʊs/", phonemes: ["m","aʊ","s"] },
+    { word: "bear", ipa: "/bɛr/", phonemes: ["b","ɛ","r"] },
+  ],
+  "Body Parts": [
+    { word: "mouth", ipa: "/maʊθ/", phonemes: ["m","aʊ","θ"] },
+    { word: "nose", ipa: "/noʊz/", phonemes: ["n","oʊ","z"] },
+    { word: "thumb", ipa: "/θʌm/", phonemes: ["θ","ʌ","m"] },
+    { word: "teeth", ipa: "/tiːθ/", phonemes: ["t","iː","θ"] },
+    { word: "hand", ipa: "/hænd/", phonemes: ["h","æ","n","d"] },
+    { word: "foot", ipa: "/fʊt/", phonemes: ["f","ʊ","t"] },
+    { word: "knee", ipa: "/niː/", phonemes: ["n","iː"] },
+    { word: "head", ipa: "/hɛd/", phonemes: ["h","ɛ","d"] },
+    { word: "ear", ipa: "/ɪr/", phonemes: ["ɪ","r"] },
+    { word: "arm", ipa: "/ɑːrm/", phonemes: ["ɑː","r","m"] },
+  ],
+  "Objects": [
+    { word: "ball", ipa: "/bɔːl/", phonemes: ["b","ɔː","l"] },
+    { word: "cup", ipa: "/kʌp/", phonemes: ["k","ʌ","p"] },
+    { word: "spoon", ipa: "/spuːn/", phonemes: ["s","p","uː","n"] },
+    { word: "chair", ipa: "/tʃɛr/", phonemes: ["tʃ","ɛ","r"] },
+    { word: "door", ipa: "/dɔːr/", phonemes: ["d","ɔː","r"] },
+    { word: "book", ipa: "/bʊk/", phonemes: ["b","ʊ","k"] },
+    { word: "shoe", ipa: "/ʃuː/", phonemes: ["ʃ","uː"] },
+    { word: "house", ipa: "/haʊs/", phonemes: ["h","aʊ","s"] },
+    { word: "truck", ipa: "/trʌk/", phonemes: ["t","r","ʌ","k"] },
+    { word: "star", ipa: "/stɑːr/", phonemes: ["s","t","ɑː","r"] },
+  ],
+  "Actions": [
+    { word: "jump", ipa: "/dʒʌmp/", phonemes: ["dʒ","ʌ","m","p"] },
+    { word: "run", ipa: "/rʌn/", phonemes: ["r","ʌ","n"] },
+    { word: "sing", ipa: "/sɪŋ/", phonemes: ["s","ɪ","ŋ"] },
+    { word: "clap", ipa: "/klæp/", phonemes: ["k","l","æ","p"] },
+    { word: "smile", ipa: "/smaɪl/", phonemes: ["s","m","aɪ","l"] },
+    { word: "sleep", ipa: "/sliːp/", phonemes: ["s","l","iː","p"] },
+    { word: "throw", ipa: "/θroʊ/", phonemes: ["θ","r","oʊ"] },
+    { word: "push", ipa: "/pʊʃ/", phonemes: ["p","ʊ","ʃ"] },
+    { word: "drink", ipa: "/drɪŋk/", phonemes: ["d","r","ɪ","ŋ","k"] },
+    { word: "wash", ipa: "/wɒʃ/", phonemes: ["w","ɒ","ʃ"] },
+  ],
+  "Colors & Numbers": [
+    { word: "red", ipa: "/rɛd/", phonemes: ["r","ɛ","d"] },
+    { word: "blue", ipa: "/bluː/", phonemes: ["b","l","uː"] },
+    { word: "green", ipa: "/ɡriːn/", phonemes: ["ɡ","r","iː","n"] },
+    { word: "yellow", ipa: "/jɛloʊ/", phonemes: ["j","ɛ","l","oʊ"] },
+    { word: "three", ipa: "/θriː/", phonemes: ["θ","r","iː"] },
+    { word: "five", ipa: "/faɪv/", phonemes: ["f","aɪ","v"] },
+    { word: "six", ipa: "/sɪks/", phonemes: ["s","ɪ","k","s"] },
+    { word: "black", ipa: "/blæk/", phonemes: ["b","l","æ","k"] },
+    { word: "white", ipa: "/waɪt/", phonemes: ["w","aɪ","t"] },
+    { word: "orange", ipa: "/ɒrɪndʒ/", phonemes: ["ɒ","r","ɪ","n","dʒ"] },
+  ],
+  "Short Phrases": [
+    { word: "the cat", ipa: "/ðə kæt/", phonemes: ["ð","ə","k","æ","t"] },
+    { word: "big dog", ipa: "/bɪɡ dɒɡ/", phonemes: ["b","ɪ","ɡ","d","ɒ","ɡ"] },
+    { word: "red ball", ipa: "/rɛd bɔːl/", phonemes: ["r","ɛ","d","b","ɔː","l"] },
+    { word: "go home", ipa: "/ɡoʊ hoʊm/", phonemes: ["ɡ","oʊ","h","oʊ","m"] },
+    { word: "thank you", ipa: "/θæŋk juː/", phonemes: ["θ","æ","ŋ","k","j","uː"] },
+    { word: "come here", ipa: "/kʌm hɪr/", phonemes: ["k","ʌ","m","h","ɪ","r"] },
+    { word: "good night", ipa: "/ɡʊd naɪt/", phonemes: ["ɡ","ʊ","d","n","aɪ","t"] },
+    { word: "my name", ipa: "/maɪ neɪm/", phonemes: ["m","aɪ","n","eɪ","m"] },
+    { word: "let me see", ipa: "/lɛt miː siː/", phonemes: ["l","ɛ","t","m","iː","s","iː"] },
+    { word: "I love you", ipa: "/aɪ lʌv juː/", phonemes: ["aɪ","l","ʌ","v","j","uː"] },
+  ]
+};
+
+// ===== Grapheme-to-phoneme map (rule-based, simplified) =====
+const G2P = {
+  "th": ["θ"], "sh": ["ʃ"], "ch": ["tʃ"], "ng": ["ŋ"], "nk": ["ŋ","k"],
+  "wh": ["w"], "ph": ["f"], "ck": ["k"], "qu": ["k","w"], "dg": ["dʒ"],
+  "igh": ["aɪ"], "oo": ["uː"], "ee": ["iː"], "ea": ["iː"], "ou": ["aʊ"],
+  "ow": ["oʊ"], "ai": ["eɪ"], "ay": ["eɪ"], "oi": ["ɔɪ"], "oy": ["ɔɪ"],
+  "ar": ["ɑː","r"], "er": ["ɜː","r"], "ir": ["ɜː","r"], "or": ["ɔː","r"],
+  "ur": ["ɜː","r"], "aw": ["ɔː"], "au": ["ɔː"],
+  "a": ["æ"], "e": ["ɛ"], "i": ["ɪ"], "o": ["ɒ"], "u": ["ʌ"],
+  "b": ["b"], "c": ["k"], "d": ["d"], "f": ["f"], "g": ["ɡ"],
+  "h": ["h"], "j": ["dʒ"], "k": ["k"], "l": ["l"], "m": ["m"],
+  "n": ["n"], "p": ["p"], "r": ["r"], "s": ["s"], "t": ["t"],
+  "v": ["v"], "w": ["w"], "x": ["k","s"], "y": ["j"], "z": ["z"],
+};
+
+function wordToPhonemes(word) {
+  // Look up from word bank first
+  for (const cat of Object.values(WORD_BANK)) {
+    const found = cat.find(w => w.word.toLowerCase() === word.toLowerCase());
+    if (found) return found.phonemes;
+  }
+  // Fallback: rule-based G2P
+  const w = word.toLowerCase().replace(/[^a-z]/g, '');
+  const phonemes = [];
+  let i = 0;
+  while (i < w.length) {
+    let matched = false;
+    // Try 3-char, 2-char, then 1-char
+    for (let len = 3; len >= 1; len--) {
+      const sub = w.substr(i, len);
+      if (G2P[sub]) {
+        phonemes.push(...G2P[sub]);
+        i += len;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) i++; // skip unknown
+  }
+  return phonemes;
+}
+
+// ===== Levenshtein Alignment with backtrace =====
+function levenshteinAlign(ref, hyp) {
+  const n = ref.length;
+  const m = hyp.length;
+  // DP table
+  const dp = Array.from({length: n+1}, () => new Array(m+1).fill(0));
+  for (let i = 0; i <= n; i++) dp[i][0] = i;
+  for (let j = 0; j <= m; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (ref[i-1] === hyp[j-1]) {
+        dp[i][j] = dp[i-1][j-1];
+      } else {
+        dp[i][j] = 1 + Math.min(
+          dp[i-1][j-1], // substitution
+          dp[i-1][j],   // deletion
+          dp[i][j-1]    // insertion
+        );
+      }
+    }
+  }
+
+  // Backtrace
+  const alignment = [];
+  let i = n, j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && ref[i-1] === hyp[j-1]) {
+      alignment.unshift({ type: 'correct', ref: ref[i-1], hyp: hyp[j-1] });
+      i--; j--;
+    } else if (i > 0 && j > 0 && dp[i][j] === dp[i-1][j-1] + 1) {
+      alignment.unshift({ type: 'substitution', ref: ref[i-1], hyp: hyp[j-1] });
+      i--; j--;
+    } else if (i > 0 && dp[i][j] === dp[i-1][j] + 1) {
+      alignment.unshift({ type: 'deletion', ref: ref[i-1], hyp: null });
+      i--;
+    } else {
+      alignment.unshift({ type: 'insertion', ref: null, hyp: hyp[j-1] });
+      j--;
+    }
+  }
+
+  const subs = alignment.filter(a => a.type === 'substitution').length;
+  const dels = alignment.filter(a => a.type === 'deletion').length;
+  const ins  = alignment.filter(a => a.type === 'insertion').length;
+  const correct = alignment.filter(a => a.type === 'correct').length;
+
+  return { alignment, subs, dels, ins, correct, editDistance: dp[n][m] };
+}
+
+// ===== WER & PER Calculation =====
+function computeWER(refText, hypText) {
+  const refWords = refText.toLowerCase().replace(/[^a-z\s]/g,'').trim().split(/\s+/).filter(w=>w);
+  const hypWords = hypText.toLowerCase().replace(/[^a-z\s]/g,'').trim().split(/\s+/).filter(w=>w);
+  const result = levenshteinAlign(refWords, hypWords);
+  const wer = refWords.length > 0 ? ((result.subs + result.dels + result.ins) / refWords.length) * 100 : 0;
+  return { ...result, wer, refWords, hypWords };
+}
+
+function computePER(refPhonemes, hypPhonemes) {
+  const result = levenshteinAlign(refPhonemes, hypPhonemes);
+  const per = refPhonemes.length > 0 ? ((result.subs + result.dels + result.ins) / refPhonemes.length) * 100 : 0;
+  const accuracy = Math.max(0, 100 - per);
+  return { ...result, per, accuracy };
+}
+
+// ===== State =====
+let currentCategory = Object.keys(WORD_BANK)[0];
+let selectedWord = null;
+let isRecording = false;
+let isProcessing = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+let sessionHistory = JSON.parse(localStorage.getItem('echovoice_history') || '[]');
+
+// ===== Microphone / Recording Support Check =====
+const hasRecordingSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+if (!hasRecordingSupport) {
+  $('unsupported').style.display = 'block';
+  micBtn.disabled = true;
+}
+
+// ===== Backend Health Check =====
+async function checkBackend() {
+  $('backendUrlLabel').textContent = ECHOVOICE_BACKEND_URL;
+  try {
+    const res = await fetch(`${ECHOVOICE_BACKEND_URL}/api/health`, { method: 'GET' });
+    if (!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    $('backendOffline').style.display = 'none';
+    if (data.fine_tuned === false) {
+      showToast('⚠️ Backend is running the base model, not the child-speech fine-tuned checkpoint.');
+    }
+  } catch (e) {
+    $('backendOffline').style.display = 'block';
+  }
+}
+if (hasRecordingSupport) checkBackend();
+
+// ===== Profile persistence (backend) =====
+let currentChildId = localStorage.getItem('echovoice_child_id') || null;
+
+async function saveProfileToBackend() {
+  const name = $('childName').value.trim();
+  const ageVal = $('childAge').value.trim();
+  const sessionDate = $('sessionDate').value;
+  if (!name) { showToast('⚠️ Enter the child\'s name first.'); return; }
+  const payload = {
+    name: name,
+    age_years: ageVal ? Number(ageVal) : null,
+    session_date: sessionDate || null
+  };
+  if (currentChildId) payload.child_id = currentChildId;
+  try {
+    const res = await fetch(`${ECHOVOICE_BACKEND_URL}/api/profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(((await res.json()).detail) || res.statusText);
+    const data = await res.json();
+    currentChildId = data.child_id;
+    localStorage.setItem('echovoice_child_id', currentChildId);
+    $('profileSaveMsg').textContent = '✔ Profile saved to backend (' + new Date().toLocaleTimeString() + ')';
+    showToast('💾 Profile saved to backend.');
+  } catch (e) {
+    $('profileSaveMsg').textContent = '✖ Save failed';
+    showToast('⚠️ Could not save profile: ' + e.message);
+  }
+}
+
+async function loadProfileFromBackend() {
+  try {
+    const res = await fetch(`${ECHOVOICE_BACKEND_URL}/api/profile`, { method: 'GET' });
+    if (!res.ok) return;
+    const data = await res.json();
+    currentChildId = data.child_id;
+    localStorage.setItem('echovoice_child_id', currentChildId);
+    $('childName').value = data.name || '';
+    if (data.age_years != null) $('childAge').value = data.age_years;
+    if (data.session_date) $('sessionDate').value = data.session_date;
+  } catch (e) { /* backend offline → keep whatever is in the fields */ }
+}
+
+$('saveProfileBtn').addEventListener('click', saveProfileToBackend);
+if (hasRecordingSupport) loadProfileFromBackend();
+
+// ===== Send recorded audio to the EchoVoice ASR backend =====
+async function transcribeWithBackend(blob) {
+  const form = new FormData();
+  form.append('audio', blob, 'attempt.webm');
+
+  const res = await fetch(`${ECHOVOICE_BACKEND_URL}/api/transcribe`, {
+    method: 'POST',
+    body: form
+  });
+
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch (e) {}
+    throw new Error(detail);
+  }
+
+  const data = await res.json();
+  return data.transcript;
+}
+
+// ===== Tab Navigation =====
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    tab.classList.add('active');
+    $('section-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'history') renderHistory();
+    if (tab.dataset.tab === 'report') updateReportSummary();
+  });
+});
+
+// ===== Category Selector =====
+function renderCategories() {
+  categorySelector.innerHTML = '';
+  Object.keys(WORD_BANK).forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn' + (cat === currentCategory ? ' active' : '');
+    btn.textContent = cat;
+    btn.addEventListener('click', () => {
+      currentCategory = cat;
+      renderCategories();
+      renderWordGrid();
+    });
+    categorySelector.appendChild(btn);
+  });
+}
+
+// ===== Word Grid =====
+function renderWordGrid() {
+  wordGrid.innerHTML = '';
+  const words = WORD_BANK[currentCategory];
+  words.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'word-card';
+    if (selectedWord && selectedWord.word === item.word) card.classList.add('selected');
+    // Check if tested
+    if (sessionHistory.some(h => h.targetWord === item.word)) card.classList.add('tested');
+
+    card.innerHTML = `
+      <button class="listen-icon" title="Listen">🔊</button>
+      <div class="word-text">${item.word}</div>
+      <div class="word-ipa">${item.ipa}</div>
+    `;
+
+    // Listen button on card
+    card.querySelector('.listen-icon').addEventListener('click', (e) => {
+      e.stopPropagation();
+      speakWord(item.word);
+    });
+
+    // Select word
+    card.addEventListener('click', () => selectWord(item));
+    wordGrid.appendChild(card);
+  });
+}
+
+function selectWord(item) {
+  selectedWord = item;
+  renderWordGrid();
+  activeWordPanel.style.display = 'block';
+  micSection.style.display = 'flex';
+  resultPanel.style.display = 'none';
+  targetWordDisplay.textContent = item.word;
+  targetIpaDisplay.textContent = item.ipa;
+  activeWordPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ===== Random Word Practice =====
+function pickRandomWord() {
+  const words = WORD_BANK[currentCategory];
+  const tested = new Set(sessionHistory.map(h => h.targetWord));
+  const untested = words.filter(w => !tested.has(w.word));
+  const pool = untested.length ? untested : words;
+  const item = pool[Math.floor(Math.random() * pool.length)];
+  selectWord(item);
+  setTimeout(() => speakWord(item.word), 250);
+  showToast(`🎲 Random word picked: "${item.word}" — listen and speak it back!`);
+}
+
+$('randomWordBtn').addEventListener('click', () => {
+  if (isRecording || isProcessing) return;
+  pickRandomWord();
+});
+
+$('randomHearAgainBtn').addEventListener('click', () => {
+  if (selectedWord) speakWord(selectedWord.word);
+});
+
+// ===== Custom Word Practice =====
+function phonemesToIpa(phonemes) {
+  return '/' + phonemes.join(' ') + '/';
+}
+
+function useCustomWord(word) {
+  const trimmed = (word || '').trim().replace(/\s+/g, ' ');
+  if (!trimmed) { showToast('⚠️ Type a word or phrase first.'); return false; }
+
+  let bankMatch = null;
+  for (const cat of Object.values(WORD_BANK)) {
+    const f = cat.find(w => w.word.toLowerCase() === trimmed.toLowerCase());
+    if (f) { bankMatch = f; break; }
+  }
+
+  const phonemes = bankMatch ? bankMatch.phonemes : wordToPhonemes(trimmed);
+  selectedWord = {
+    word: trimmed,
+    ipa: bankMatch ? bankMatch.ipa : phonemesToIpa(phonemes),
+    phonemes: phonemes
+  };
+  renderWordGrid();
+  activeWordPanel.style.display = 'block';
+  micSection.style.display = 'flex';
+  resultPanel.style.display = 'none';
+  targetWordDisplay.textContent = selectedWord.word;
+  targetIpaDisplay.textContent = selectedWord.ipa;
+  setTimeout(() => speakWord(selectedWord.word), 200);
+  activeWordPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return true;
+}
+
+$('customWordBtn').addEventListener('click', () => {
+  if (isRecording || isProcessing) return;
+  useCustomWord($('customWordInput').value);
+});
+
+$('customWordInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !isRecording && !isProcessing) {
+    useCustomWord($('customWordInput').value);
+  }
+});
+
+$('customHearAgainBtn').addEventListener('click', () => {
+  if (selectedWord) speakWord(selectedWord.word);
+});
+
+// ===== TTS =====
+function speakWord(word) {
+  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(word);
+  utter.rate = 0.8;
+  utter.pitch = 1.1;
+  utter.lang = 'en-US';
+  speechSynthesis.speak(utter);
+}
+
+listenTargetBtn.addEventListener('click', () => {
+  if (selectedWord) speakWord(selectedWord.word);
+});
+
+// ===== Mic Control =====
+micBtn.addEventListener('click', () => {
+  if (!hasRecordingSupport || !selectedWord || isProcessing) return;
+  if (isRecording) { stopRecording(); }
+  else { startRecording(); }
+});
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+
+    // Prefer a widely-supported container; MediaRecorder picks a sensible
+    // default codec (webm/opus in Chrome/Edge) if we don't force one.
+    const mimeCandidates = ['audio/webm', 'audio/ogg', 'audio/mp4'];
+    const mimeType = mimeCandidates.find(t => window.MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(track => track.stop());
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      handleRecordedAudio(blob);
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹️';
+    micStatus.textContent = 'Listening… Say the word!';
+    micStatus.classList.add('active');
+  } catch (err) {
+    isRecording = false;
+    showToast('🎤 Please allow microphone access!');
+  }
+}
+
+function stopRecording() {
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop(); // triggers onstop -> handleRecordedAudio
+  }
+}
+
+async function handleRecordedAudio(blob) {
+  if (blob.size < 500) {
+    micStatus.textContent = 'Tap to speak the word!';
+    micStatus.classList.remove('active');
+    showToast("🤔 Didn't hear anything. Try again!");
+    return;
+  }
+
+  isProcessing = true;
+  micBtn.textContent = '⏳';
+  micStatus.textContent = 'Analyzing with EchoVoice ASR…';
+
+  try {
+    const spokenText = await transcribeWithBackend(blob);
+    if (!spokenText) {
+      showToast("🤔 Didn't catch that. Try again!");
+    } else {
+      analyzeAttempt(spokenText);
+    }
+  } catch (err) {
+    $('backendOffline').style.display = 'block';
+    showToast('⚠️ Could not reach the ASR backend: ' + err.message);
+  } finally {
+    isProcessing = false;
+    micBtn.textContent = '🎙️';
+    micStatus.textContent = 'Tap to speak the word!';
+    micStatus.classList.remove('active');
+  }
+}
+
+// ===== Analysis Engine =====
+function analyzeAttempt(spokenText) {
+  if (!selectedWord) return;
+
+  const target = selectedWord.word;
+  const targetPhonemes = selectedWord.phonemes;
+  const spokenPhonemes = wordToPhonemes(spokenText);
+
+  // WER
+  const werResult = computeWER(target, spokenText);
+  // PER
+  const perResult = computePER(targetPhonemes, spokenPhonemes);
+
+  // Pronunciation accuracy score (Sacc formula from manuscript)
+  const Np = targetPhonemes.length;
+  const Sp = perResult.subs;
+  const Dp = perResult.dels;
+  const Ip = perResult.ins;
+  const Sacc = Math.max(0, ((Np - (Sp + Dp + Ip)) / Np) * 100);
+
+  // Display results
+  $('resultTarget').textContent = target;
+  $('resultSpoken').textContent = spokenText.toLowerCase();
+  resultPanel.style.display = 'block';
+
+  // Metrics grid
+  const colorClass = v => v <= 15 ? 'good' : v <= 40 ? 'warn' : 'bad';
+  const accColor = v => v >= 85 ? 'good' : v >= 60 ? 'warn' : 'bad';
+
+  $('metricsGrid').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-icon">🎯</div>
+      <div class="metric-value ${accColor(Sacc)}">${Sacc.toFixed(1)}%</div>
+      <div class="metric-label">Accuracy (S<sub>acc</sub>)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">🔤</div>
+      <div class="metric-value ${colorClass(werResult.wer)}">${werResult.wer.toFixed(1)}%</div>
+      <div class="metric-label">Word Error Rate</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">🔬</div>
+      <div class="metric-value ${colorClass(perResult.per)}">${perResult.per.toFixed(1)}%</div>
+      <div class="metric-label">Phoneme Error Rate</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">🔁</div>
+      <div class="metric-value">${Sp}</div>
+      <div class="metric-label">Substitutions</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">❌</div>
+      <div class="metric-value">${Dp}</div>
+      <div class="metric-label">Deletions</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon">➕</div>
+      <div class="metric-value">${Ip}</div>
+      <div class="metric-label">Insertions</div>
+    </div>
+  `;
+
+  // Phoneme alignment chips
+  const phonemeRow = $('phonemeRow');
+  phonemeRow.innerHTML = '';
+  perResult.alignment.forEach(a => {
+    const chip = document.createElement('span');
+    chip.className = 'phoneme-chip ' + a.type;
+    if (a.type === 'correct') chip.textContent = a.ref;
+    else if (a.type === 'substitution') chip.textContent = `${a.ref}→${a.hyp}`;
+    else if (a.type === 'deletion') chip.textContent = `${a.ref} ✕`;
+    else if (a.type === 'insertion') chip.textContent = `+${a.hyp}`;
+    chip.title = a.type.charAt(0).toUpperCase() + a.type.slice(1);
+    phonemeRow.appendChild(chip);
+  });
+
+  resultPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Save to history
+  const entry = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    childName: $('childName').value || 'Unknown',
+    childAge: $('childAge').value || '—',
+    targetWord: target,
+    targetIpa: selectedWord.ipa,
+    spokenText: spokenText.toLowerCase(),
+    targetPhonemes: targetPhonemes,
+    spokenPhonemes: spokenPhonemes,
+    wer: werResult.wer,
+    per: perResult.per,
+    accuracy: Sacc,
+    subs: Sp,
+    dels: Dp,
+    ins: Ip,
+    alignment: perResult.alignment
+  };
+  sessionHistory.push(entry);
+  localStorage.setItem('echovoice_history', JSON.stringify(sessionHistory));
+
+  // Encouragement
+  if (Sacc >= 90) showToast('🌟 Perfect pronunciation!');
+  else if (Sacc >= 70) showToast('👏 Great job! Keep practicing!');
+  else if (Sacc >= 50) showToast('💪 Good try! Listen and try again!');
+  else showToast('🎧 Listen carefully and try once more!');
+
+  renderWordGrid(); // update tested state
+}
+
+// ===== History Rendering =====
+function renderHistory() {
+  const content = $('historyContent');
+  if (sessionHistory.length === 0) {
+    content.innerHTML = '<p style="color:var(--text-muted); font-style:italic;">No attempts recorded yet.</p>';
+    return;
+  }
+  let html = `<table class="session-table">
+    <thead><tr>
+      <th>Word</th><th>Spoken</th><th>WER</th><th>PER</th><th>Accuracy</th><th>S/D/I</th><th>Time</th>
+    </tr></thead><tbody>`;
+
+  [...sessionHistory].reverse().forEach(h => {
+    const time = new Date(h.timestamp).toLocaleTimeString();
+    const accColor = h.accuracy >= 85 ? 'var(--green)' : h.accuracy >= 60 ? 'var(--orange)' : 'var(--red)';
+    html += `<tr>
+      <td><strong>${h.targetWord}</strong></td>
+      <td>${h.spokenText}</td>
+      <td>${h.wer.toFixed(1)}%</td>
+      <td>${h.per.toFixed(1)}%</td>
+      <td style="color:${accColor}; font-weight:700;">${h.accuracy.toFixed(1)}%</td>
+      <td>${h.subs}/${h.dels}/${h.ins}</td>
+      <td style="font-size:.78rem; color:var(--text-muted);">${time}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  content.innerHTML = html;
+}
+
+$('clearHistoryBtn').addEventListener('click', () => {
+  if (confirm('Clear all session history?')) {
+    sessionHistory = [];
+    localStorage.removeItem('echovoice_history');
+    renderHistory();
+    showToast('🗑️ History cleared');
+  }
+});
+
+// ===== Report Summary =====
+function updateReportSummary() {
+  const h = sessionHistory;
+  $('repTotalAttempts').textContent = h.length;
+  const uniqueWords = new Set(h.map(e => e.targetWord));
+  $('repUniqueWords').textContent = uniqueWords.size;
+
+  if (h.length > 0) {
+    const avgWER = h.reduce((s,e) => s + e.wer, 0) / h.length;
+    const avgPER = h.reduce((s,e) => s + e.per, 0) / h.length;
+    const avgAcc = h.reduce((s,e) => s + e.accuracy, 0) / h.length;
+    $('repAvgWER').textContent = avgWER.toFixed(1) + '%';
+    $('repAvgPER').textContent = avgPER.toFixed(1) + '%';
+    $('repAvgAccuracy').textContent = avgAcc.toFixed(1) + '%';
+
+    // Best word
+    const wordAccs = {};
+    h.forEach(e => {
+      if (!wordAccs[e.targetWord]) wordAccs[e.targetWord] = [];
+      wordAccs[e.targetWord].push(e.accuracy);
+    });
+    let bestWord = '—', bestAcc = -1;
+    for (const [w, accs] of Object.entries(wordAccs)) {
+      const avg = accs.reduce((a,b)=>a+b,0)/accs.length;
+      if (avg > bestAcc) { bestAcc = avg; bestWord = w; }
+    }
+    $('repBestWord').textContent = bestWord;
+  } else {
+    $('repAvgWER').textContent = '—';
+    $('repAvgPER').textContent = '—';
+    $('repAvgAccuracy').textContent = '—';
+    $('repBestWord').textContent = '—';
+  }
+}
+
+// ===== PDF Generation =====
+$('genPdfBtn').addEventListener('click', generatePDF);
+
+function generatePDF() {
+  if (sessionHistory.length === 0) {
+    showToast('⚠️ No data to generate report!');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 18;
+  let y = 20;
+
+  // Colors
+  const purple = [108,92,231];
+  const dark = [45,52,54];
+  const gray = [99,110,114];
+  const green = [0,184,148];
+  const red = [214,48,49];
+  const orange = [225,112,85];
+
+  // Header
+  doc.setFillColor(...purple);
+  doc.rect(0, 0, pageW, 42, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(22);
+  doc.setFont('helvetica','bold');
+  doc.text('EchoVoice', pageW/2, 16, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica','normal');
+  doc.text('Self-Supervised Acoustic Modeling for Phoneme-Level Error Detection in Children\'s Speech', pageW/2, 24, { align: 'center' });
+  doc.setFontSize(7.5);
+  doc.text('Nievera, K.D. • Cerezo, K.A. • Doctolero, M.J. • Gonzales, R.Jr. • Paglingayen, J.', pageW/2, 30, { align: 'center' });
+  doc.text('DMMMSU – South La Union Campus • College of Computer Science • October 2026', pageW/2, 35, { align: 'center' });
+  y = 50;
+
+  // Child info
+  doc.setTextColor(...dark);
+  doc.setFontSize(13);
+  doc.setFont('helvetica','bold');
+  doc.text('Assessment Report', margin, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(...gray);
+  const childName = $('childName').value || 'Not specified';
+  const childAge = $('childAge').value || 'Not specified';
+  const sessDate = $('sessionDate').value || new Date().toISOString().slice(0,10);
+  doc.text(`Child: ${childName}     Age: ${childAge}     Session Date: ${sessDate}`, margin, y);
+  y += 4;
+  doc.text(`Report Generated: ${new Date().toLocaleString()}     Total Attempts: ${sessionHistory.length}`, margin, y);
+  y += 10;
+
+  // Divider
+  doc.setDrawColor(...purple);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  // Summary Statistics
+  const h = sessionHistory;
+  const avgWER = h.reduce((s,e) => s + e.wer, 0) / h.length;
+  const avgPER = h.reduce((s,e) => s + e.per, 0) / h.length;
+  const avgAcc = h.reduce((s,e) => s + e.accuracy, 0) / h.length;
+  const totalSubs = h.reduce((s,e) => s + e.subs, 0);
+  const totalDels = h.reduce((s,e) => s + e.dels, 0);
+  const totalIns = h.reduce((s,e) => s + e.ins, 0);
+  const uniqueWords = new Set(h.map(e => e.targetWord));
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...dark);
+  doc.text('Aggregate Performance Metrics', margin, y);
+  y += 8;
+
+  // Summary boxes
+  const boxW = (pageW - 2*margin - 2*8) / 3;
+  const drawMetricBox = (x, yPos, label, value, color) => {
+    doc.setFillColor(245,245,255);
+    doc.roundedRect(x, yPos, boxW, 28, 3, 3, 'F');
+    doc.setFontSize(16);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(...color);
+    doc.text(value, x + boxW/2, yPos + 13, { align: 'center' });
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(...gray);
+    doc.text(label, x + boxW/2, yPos + 22, { align: 'center' });
+  };
+
+  drawMetricBox(margin, y, 'Avg Accuracy (Sacc)', avgAcc.toFixed(1) + '%', avgAcc >= 85 ? green : avgAcc >= 60 ? orange : red);
+  drawMetricBox(margin + boxW + 8, y, 'Avg Word Error Rate (WER)', avgWER.toFixed(1) + '%', avgWER <= 15 ? green : avgWER <= 40 ? orange : red);
+  drawMetricBox(margin + 2*(boxW+8), y, 'Avg Phoneme Error Rate (PER)', avgPER.toFixed(1) + '%', avgPER <= 15 ? green : avgPER <= 40 ? orange : red);
+  y += 36;
+
+  // Formulas reference
+  doc.setFontSize(8);
+  doc.setFont('helvetica','italic');
+  doc.setTextColor(...gray);
+  doc.text('WER = (Sw + Dw + Iw) / Nw × 100%     |     PER = (Sp + Dp + Ip) / Np × 100%     |     Sacc = max(0, (Np - (Sp+Dp+Ip)) / Np) × 100%', margin, y);
+  y += 6;
+  doc.text(`Total Phoneme Errors — Substitutions: ${totalSubs}   Deletions: ${totalDels}   Insertions: ${totalIns}   |   Unique Words Tested: ${uniqueWords.size}`, margin, y);
+  y += 10;
+
+  // Divider
+  doc.setDrawColor(220,220,230);
+  doc.line(margin, y, pageW - margin, y);
+  y += 6;
+
+  // Per-word summary
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...dark);
+  doc.text('Per-Word Performance Summary', margin, y);
+  y += 6;
+
+  // Build per-word data
+  const wordData = {};
+  h.forEach(e => {
+    if (!wordData[e.targetWord]) wordData[e.targetWord] = { ipa: e.targetIpa, attempts: [] };
+    wordData[e.targetWord].attempts.push(e);
+  });
+
+  const tableBody = Object.entries(wordData).map(([word, data]) => {
+    const att = data.attempts;
+    const avgA = att.reduce((s,e)=>s+e.accuracy,0)/att.length;
+    const avgW = att.reduce((s,e)=>s+e.wer,0)/att.length;
+    const avgP = att.reduce((s,e)=>s+e.per,0)/att.length;
+    const tS = att.reduce((s,e)=>s+e.subs,0);
+    const tD = att.reduce((s,e)=>s+e.dels,0);
+    const tI = att.reduce((s,e)=>s+e.ins,0);
+    return [word, data.ipa, att.length.toString(), avgA.toFixed(1)+'%', avgW.toFixed(1)+'%', avgP.toFixed(1)+'%', `${tS}/${tD}/${tI}`];
+  });
+
+  doc.autoTable({
+    startY: y,
+    head: [['Word', 'IPA', 'Attempts', 'Avg Acc', 'Avg WER', 'Avg PER', 'S/D/I']],
+    body: tableBody,
+    margin: { left: margin, right: margin },
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: purple, textColor: [255,255,255], fontStyle: 'bold', fontSize: 7.5 },
+    alternateRowStyles: { fillColor: [248,249,255] },
+    didParseCell: function(data) {
+      if (data.section === 'body' && data.column.index === 3) {
+        const val = parseFloat(data.cell.raw);
+        if (val >= 85) data.cell.styles.textColor = green;
+        else if (val >= 60) data.cell.styles.textColor = orange;
+        else data.cell.styles.textColor = red;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  // Check for page overflow
+  if (y > 250) { doc.addPage(); y = 20; }
+
+  // Detailed attempt log
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...dark);
+  doc.text('Detailed Attempt Log', margin, y);
+  y += 6;
+
+  const detailBody = h.map(e => {
+    const time = new Date(e.timestamp).toLocaleTimeString();
+    return [e.targetWord, e.spokenText, e.accuracy.toFixed(1)+'%', e.wer.toFixed(1)+'%', e.per.toFixed(1)+'%', `${e.subs}/${e.dels}/${e.ins}`, time];
+  });
+
+  doc.autoTable({
+    startY: y,
+    head: [['Target', 'Spoken', 'Accuracy', 'WER', 'PER', 'S/D/I', 'Time']],
+    body: detailBody,
+    margin: { left: margin, right: margin },
+    styles: { fontSize: 7.5, cellPadding: 2.5 },
+    headStyles: { fillColor: purple, textColor: [255,255,255], fontStyle: 'bold', fontSize: 7 },
+    alternateRowStyles: { fillColor: [248,249,255] },
+    didParseCell: function(data) {
+      if (data.section === 'body' && data.column.index === 2) {
+        const val = parseFloat(data.cell.raw);
+        if (val >= 85) data.cell.styles.textColor = green;
+        else if (val >= 60) data.cell.styles.textColor = orange;
+        else data.cell.styles.textColor = red;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+  y = doc.lastAutoTable.finalY + 10;
+
+  // Check for page overflow for interpretation
+  if (y > 230) { doc.addPage(); y = 20; }
+
+  // Interpretation / Clinical Notes
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...dark);
+  doc.text('Clinical Interpretation Notes', margin, y);
+  y += 7;
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(...gray);
+
+  const notes = [];
+  if (avgPER <= 15) notes.push('• Average PER is within the target threshold of <15%, indicating strong phoneme-level accuracy.');
+  else if (avgPER <= 30) notes.push('• Average PER is moderate (15–30%). Targeted phoneme practice is recommended.');
+  else notes.push('• Average PER exceeds 30%, suggesting significant phoneme-level difficulties. Clinical consultation advised.');
+
+  if (avgWER <= 20) notes.push('• Average WER is within the acceptable target of <20%, indicating good word-level recognition.');
+  else notes.push('• Average WER exceeds 20%. Further evaluation of articulatory patterns is recommended.');
+
+  if (totalSubs > totalDels + totalIns) notes.push('• Substitutions are the predominant error type, suggesting articulatory placement difficulties.');
+  if (totalDels > totalSubs) notes.push('• Deletions are elevated, indicating possible phoneme omission patterns.');
+  if (totalIns > 0) notes.push(`• ${totalIns} insertion(s) detected, which may indicate extraneous vocalizations.`);
+
+  notes.push('');
+  notes.push('Note: Metrics computed using Levenshtein Dynamic Programming Alignment per the EchoVoice methodology.');
+  notes.push('Phoneme Error Rate formula: PER = (Sp + Dp + Ip) / Np × 100%');
+  notes.push('Word Error Rate formula: WER = (Sw + Dw + Iw) / Nw × 100%');
+  notes.push('Pronunciation Accuracy: Sacc = max(0, (Np − (Sp + Dp + Ip)) / Np) × 100%');
+
+  notes.forEach(n => {
+    doc.text(n, margin, y);
+    y += 4.5;
+  });
+
+  y += 4;
+  // ICC reference
+  doc.setFontSize(8);
+  doc.setFont('helvetica','italic');
+  doc.text('ICC Agreement Scale Reference — Below 0.50: Poor | 0.50–0.75: Moderate | 0.75–0.90: Good | Above 0.90: Excellent', margin, y);
+  y += 8;
+
+  // Footer
+  doc.setDrawColor(...purple);
+  doc.setLineWidth(0.3);
+  doc.line(margin, y, pageW - margin, y);
+  y += 5;
+  doc.setFontSize(7);
+  doc.setTextColor(...gray);
+  doc.text('EchoVoice — DMMMSU South La Union Campus, College of Computer Science', margin, y);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, pageW - margin, y, { align: 'right' });
+
+  // Save
+  const fileName = `EchoVoice_Report_${childName.replace(/\s+/g,'_')}_${sessDate}.pdf`;
+  doc.save(fileName);
+  showToast('📥 PDF Report downloaded!');
+}
+
+// ===== Manuscript Content =====
+function renderManuscript() {
+  const content = $('manuscriptContent');
+  content.innerHTML = `
+    <h2>ECHOVOICE: Self-Supervised Acoustic Modeling for Phoneme-Level Error Detection in Children's Speech</h2>
+    <p style="font-size:.82rem; color:var(--text-light);">
+      <strong>Authors:</strong> Kurt Daryl M. Nievera, Kate Ann H. Cerezo, Maica Jenish M. Doctolero,
+      Rolando Jr. T. Gonzales, Jefferson S. Paglingayen<br>
+      <strong>Institution:</strong> Don Mariano Marcos Memorial State University, South La Union Campus,
+      College of Computer Science, Agoo, La Union<br>
+      <strong>Degree:</strong> Bachelor of Science in Computer Science &bull; October 2026<br>
+      <strong>Adviser:</strong> Dr. Clarisa V. Albarillo
+    </p>
+
+    <h2>Abstract</h2>
+    <p>Developing accurate automatic speech recognition (ASR) systems for pediatric speech remains a critical challenge in machine learning due to severe acoustic mismatches, high pitch variance, and limited public pediatric speech corpora. Standard commercial language models often mask phonetic deviations via orthographic autocorrection, making them unsuitable for fine-grained articulatory assessment.</p>
+    <p>This study introduces EchoVoice, a self-supervised deep learning acoustic modeling pipeline tailored for pediatric speech processing and phoneme-level error detection. EchoVoice fine-tunes a self-supervised Hidden-Unit BERT (HuBERT) architecture using data augmentation techniques, including SpecAugment, pitch modification, and ambient noise injection. Acoustic frame probabilities are mapped directly to target International Phonetic Alphabet (IPA) tokens via Connectionist Temporal Classification (CTC) loss and evaluated using Levenshtein dynamic alignment.</p>
+    <p>The model's performance is measured using Word Error Rate (WER), Phoneme Error Rate (PER), precision, recall, and F1-score across clean and noisy test partitions. Statistical agreement between model-generated phoneme scores and independent clinical perceptual ratings is validated using the Two-Way Random-Effects Intraclass Correlation Coefficient (ICC(2,1)).</p>
+    <p><strong>Keywords:</strong> automatic speech recognition, self-supervised learning, HuBERT, phoneme error detection, acoustic modeling</p>
+
+    <h2>Chapter 1: Introduction</h2>
+    <h3>Situation Analysis</h3>
+    <p>Automatic Speech Recognition (ASR) technology has experienced rapid architectural advancement over the past decade, shifting from traditional Gaussian Mixture Models and Hidden Markov Models (GMM-HMMs) to end-to-end deep neural networks and self-supervised transformer representations. While modern foundation models achieve near-human transcription fidelity when evaluated on adult speech, adapting these systems to children's speech remains one of the most persistent and structural challenges in speech-processing machine learning.</p>
+    <p>Standard ASR models trained predominantly on adult acoustic data exhibit catastrophic performance degradation when deployed on pediatric speech inputs. This failure is fundamentally rooted in severe acoustic, anatomical, and behavioral domain mismatches. Pediatric speech features higher fundamental frequencies (F0), shorter vocal tract lengths leading to significantly shifted formant profiles (F1, F2, F3), undeveloped articulatory motor control, and extreme intra- and inter-speaker acoustic variability.</p>
+    <p>To bridge these global, national, and local research gaps, this study presents EchoVoice, a specialized self-supervised deep learning acoustic modeling pipeline. EchoVoice utilizes the HuBERT (Hidden-Unit BERT) architecture, a state-of-the-art self-supervised framework that uses offline cluster-based masked prediction targets to learn continuous acoustic representations.</p>
+
+    <h3>Statement of the Objectives</h3>
+    <p>The primary objective of this study is to design, develop, and evaluate EchoVoice, a self-supervised deep learning acoustic modeling pipeline using fine-tuned HuBERT for automated, phoneme-level error detection and pronunciation assessment in children's speech.</p>
+    <p>Specifically, the study aims to:</p>
+    <ul style="padding-left:20px; margin-bottom:12px;">
+      <li>Fine-tune a pre-trained HuBERT self-supervised acoustic model on pediatric speech corpora</li>
+      <li>Develop an automated phoneme alignment and scoring engine utilizing frame-level probability projections and Levenshtein dynamic programming alignment</li>
+      <li>Evaluate the model's technical acoustic performance in terms of PER, WER, precision, recall, and F1-score</li>
+      <li>Validate the model's automated scoring accuracy against the perceptual ratings of a licensed Speech-Language Pathologist using the Intraclass Correlation Coefficient (ICC)</li>
+    </ul>
+
+    <h2>Chapter 2: Methodology</h2>
+    <h3>Research Design</h3>
+    <p>This study adopts a quantitative-experimental and descriptive research design, structured within an iterative machine learning development life cycle. The machine learning pipeline operationalizes this design via transfer learning using the HuBERT architecture, leveraging self-supervised acoustic frame representations pre-trained on masked prediction targets.</p>
+
+    <h3>Key Formulas</h3>
+    <p><strong>CTC Loss:</strong> ℒ<sub>CTC</sub> = −ln P(Y|X), where X represents the input sequence of acoustic frames and Y represents the ground-truth sequence of canonical target phonemes.</p>
+    <p><strong>Pronunciation Accuracy:</strong> S<sub>acc</sub> = max(0, (N<sub>p</sub> − (S<sub>p</sub> + D<sub>p</sub> + I<sub>p</sub>)) / N<sub>p</sub>) × 100%</p>
+    <p><strong>PER:</strong> PER = (S<sub>p</sub> + D<sub>p</sub> + I<sub>p</sub>) / N<sub>p</sub> × 100%</p>
+    <p><strong>WER:</strong> WER = (S<sub>w</sub> + D<sub>w</sub> + I<sub>w</sub>) / N<sub>w</sub> × 100%</p>
+
+    <h3>Data Augmentation</h3>
+    <p>Three data augmentation techniques are applied: (1) Time and frequency masking via SpecAugment, (2) Stochastic pitch-shifting between −3.0 and +4.0 semitones, and (3) Ambient background noise mixing at SNR ranging from 0–15 dB.</p>
+
+    <h3>Model Architecture</h3>
+    <p>The primary acoustic engine is built upon the HuBERT architecture. The base HuBERT encoder processes raw audio waveforms into 20 ms acoustic frames using a CNN temporal encoder followed by a 12-layer transformer stack. Frame representations are projected onto a linear classification layer mapping to an IPA phoneme vocabulary subset, optimized using CTC Loss.</p>
+
+    <h3>Clinical Validation</h3>
+    <p>Inter-rater reliability and clinical agreement are measured using the Intraclass Correlation Coefficient ICC(2,1). Target: ICC > 0.75. Ratings below 0.50 indicate poor agreement, 0.50–0.75 moderate, 0.75–0.90 good, and above 0.90 excellent.</p>
+
+    <h3>Dataset</h3>
+    <p>Primary dataset: PERCEPT-GFTA corpus (Benway et al., 2022) from TalkBank — 350 talkers aged 6–17. Local validation: Growth Journey Learning Center Inc., Agoo, La Union — 5 pediatric participants with ASD-related speech sound difficulties, each performing 30 target words from GFTA (150 audio samples total).</p>
+
+    <h3>Ethical Considerations</h3>
+    <p>All data handling adheres strictly to the Philippine Data Privacy Act of 2012 (R.A. 10173) and the 2022 National Ethical Guidelines for Research Involving Human Participants (NEGRIHP). Audio waveforms are stripped of metadata and tagged with pseudonymized identifiers. All samples stored on AES-256 encrypted volumes with TLS/SSL transfer protocols.</p>
+  `;
+}
+
+// ===== Toast =====
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2800);
+}
+
+// ===== Background shapes =====
+(function() {
+  const c = $('bgShapes');
+  const colors = ['#6c5ce7','#fd79a8','#00b894','#74b9ff','#a29bfe'];
+  for (let i = 0; i < 8; i++) {
+    const s = document.createElement('div');
+    s.className = 'bg-shape';
+    const size = 100 + Math.random() * 250;
+    s.style.width = size + 'px';
+    s.style.height = size + 'px';
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    s.style.background = colors[i % colors.length];
+    s.style.animationDuration = (15 + Math.random() * 20) + 's';
+    s.style.animationDelay = (Math.random() * 10) + 's';
+    c.appendChild(s);
+  }
+})();
+
+// ===== Init =====
+$('sessionDate').valueAsDate = new Date();
+renderCategories();
+renderWordGrid();
+renderManuscript();
+
+
+// ===== Splash Screen & Authentication =====
+const AUTH_ACCOUNTS_KEY = 'echovoice_accounts';
+const AUTH_SESSION_KEY = 'echovoice_session';
+const appWrapper = appWrapper;
+const splashEl = splash;
+const authScreenEl = authScreen;
+
+function getAccounts() {
+  try { return JSON.parse(localStorage.getItem(AUTH_ACCOUNTS_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function saveAccounts(accounts) { localStorage.setItem(AUTH_ACCOUNTS_KEY, JSON.stringify(accounts)); }
+
+function fallbackHash(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; }
+  return 'fnv_' + h.toString(16);
+}
+async function hashPassword(pw, salt) {
+  const input = salt + '::' + pw;
+  if (window.crypto && crypto.subtle) {
+    const data = new TextEncoder().encode(input);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return 'sha256_' + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  return fallbackHash(input);
+}
+
+function currentUser() { return localStorage.getItem(AUTH_SESSION_KEY) || null; }
+
+function showApp() {
+  authScreenEl.style.display = 'none';
+  appWrapper.style.display = 'block';
+  headerUsername.textContent = currentUser() ? '👤 ' + currentUser() : '';
+}
+
+function showAuth() {
+  appWrapper.style.display = 'none';
+  authScreenEl.style.display = 'flex';
+}
+
+function setAuthMsg(text, ok) {
+  const el = authMsg;
+  el.textContent = text || '';
+  el.className = 'auth-msg' + (ok ? ' ok' : '');
+}
+
+function switchAuthTab(tab) {
+  const isLogin = tab === 'login';
+  authTabLogin.classList.toggle('active', isLogin);
+  authTabSignup.classList.toggle('active', !isLogin);
+  loginForm.style.display = isLogin ? 'block' : 'none';
+  signupForm.style.display = isLogin ? 'none' : 'block';
+  setAuthMsg('');
+}
+
+authTabLogin.addEventListener('click', () => switchAuthTab('login'));
+authTabSignup.addEventListener('click', () => switchAuthTab('signup'));
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = loginUsername.value.trim().toLowerCase();
+  const password = loginPassword.value;
+  if (!username || !password) { setAuthMsg('Enter your username and password.'); return; }
+  const account = getAccounts().find(a => a.u === username);
+  if (!account) { setAuthMsg('No account found. Please sign up first.'); return; }
+  const hash = await hashPassword(password, account.s);
+  if (hash !== account.h) { setAuthMsg('Incorrect password. Try again.'); return; }
+  localStorage.setItem(AUTH_SESSION_KEY, account.u);
+  showApp();
+  setAuthMsg('');
+  showToast('👋 Welcome back, ' + account.u + '!');
+});
+
+signupForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = signupUsername.value.trim().toLowerCase();
+  const password = signupPassword.value;
+  const confirm = signupConfirm.value;
+  if (!username) { setAuthMsg('Choose a username.'); return; }
+  if (!/^[a-z0-9_.]{3,20}$/.test(username)) { setAuthMsg('Username: 3-20 letters, numbers, dots, or underscores.'); return; }
+  if (password.length < 6) { setAuthMsg('Password must be at least 6 characters.'); return; }
+  if (password !== confirm) { setAuthMsg('Passwords do not match.'); return; }
+  const accounts = getAccounts();
+  if (accounts.some(a => a.u === username)) { setAuthMsg('That username is already taken.'); return; }
+  const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const hash = await hashPassword(password, salt);
+  accounts.push({ u: username, s: salt, h: hash, created: new Date().toISOString() });
+  saveAccounts(accounts);
+  localStorage.setItem(AUTH_SESSION_KEY, username);
+  showApp();
+  setAuthMsg('');
+  showToast('🎉 Account created. Welcome to EchoVoice!');
+});
+
+logoutBtn.addEventListener('click', () => {
+  localStorage.removeItem(AUTH_SESSION_KEY);
+  showAuth();
+  switchAuthTab('login');
+  showToast('👋 You have been logged out.');
+});
+
+// Boot: splash -> (app | auth)
+(function boot() {
+  setTimeout(() => {
+    splashEl.classList.add('hidden');
+    setTimeout(() => {
+      splashEl.style.display = 'none';
+      if (currentUser()) showApp(); else showAuth();
+    }, 500);
+  }, 2000);
+})();
