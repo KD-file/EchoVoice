@@ -1,156 +1,138 @@
 # Data Flow Diagrams (DFD) — EchoVoice
 
-Gane–Sarson notation:
+EchoVoice: A Web-Based Pronunciation Assessment for Speech Therapy.
 
-- **External entity** — a rectangle: `Child / Examinee`, `Examiner / Parent / SLP`
-- **Process** — a rounded (stadium) shape, numbered `n.0`
-- **Data store** — an open-ended bar, numbered `Dn`
-
-The diagrams are **leveled** (balanced decomposition): Level 0 shows the whole
-system as one process, Level 1 decomposes it into the app's main processes,
-and Level 2 decomposes process 2.0 — the only process that crosses the network
-to the EchoVoice ASR backend.
-
-> **Phoneme notation.** Pronunciation is scored at the phoneme level, so the
-> system needs a canonical phoneme symbol set. The lower-case symbols in the
-> word bank (e.g. `k æ t` for "cat") are a simplified CMU-style **IPA subset**;
-> they are the reference sequence `phonemes[]` used for PER/Sacc scoring. The
-> `ipa` string (e.g. `/kæt/`) is the human-readable transcription shown on the
-> word cards. Both come from `WORD_BANK` in `Source_Code/index.html`.
+This file follows the draft DFD in `DFD-1st-draft_drawio.pdf`. Notation: rectangles are external entities, circles are processes (numbered `n.0`), and open-ended shapes are data stores (`Dn`). Each level breaks down one process from the level above.
 
 ---
 
 ## Level 0 — Context Diagram
 
+EchoVoice is shown as one process. It talks to three outside parties: the caregiver, the child (participant), and the cooperating SLP.
+
 ```mermaid
 flowchart LR
-    CHILD[["Child / Examinee"]]
-    EXAM[["Examiner / Parent / SLP"]]
-    SYS(("EchoVoice"))
+    CG[["Caregiver"]]
+    CH[["Child (Participant)"]]
+    SLP[["Cooperating SLP"]]
+    SYS(("0\nEchoVoice\nWeb-Based Pronunciation\nAssessment System"))
 
-    CHILD -- "spoken word attempt (audio)" --> SYS
-    SYS -- "target word + IPA + TTS audio" --> CHILD
-    SYS -- "Sacc / WER / PER feedback" --> CHILD
+    CG -- "participant code and session start" --> SYS
+    CG -- "report request" --> SYS
+    SYS -- "Child Progress Report (PDF)" --> CG
 
-    EXAM -- "child profile (name, age)" --> SYS
-    EXAM -- "session control (select word, view history)" --> SYS
-    SYS -- "assessment report (PDF)" --> EXAM
-    SYS -- "session history view" --> EXAM
+    CH -- "spoken word attempt (audio)" --> SYS
+    SYS -- "target word prompt and model audio" --> CH
+    SYS -- "feedback message and animation" --> CH
+
+    SLP -- "report request" --> SYS
+    SYS -- "Clinician Report (PDF and CSV)" --> SLP
 ```
 
 | # | Flow | From → To | Description |
-|---|------|-----------|--------------|
-| 1 | Spoken word attempt | Child → System | Raw audio captured by the browser microphone for one target word |
-| 2 | Target word prompt | System → Child | Target word, IPA transcription, and TTS pronunciation |
-| 3 | Live feedback | System → Child | Sacc, WER, PER, and phoneme alignment chips for the attempt just made |
-| 4 | Child profile | Examiner → System | Name and age entered before/while testing, used on the report |
-| 5 | Session control | Examiner → System | Word/category selection, tab navigation, "clear history" |
-| 6 | Assessment report | System → Examiner | Downloadable PDF summarizing the session |
-| 7 | Session history view | System → Examiner | On-screen list of all attempts in the current browser session |
+|---|------|-----------|-------------|
+| 1 | Participant code and session start | Caregiver → System | The caregiver enters the participant code (not the child's name) and starts the session |
+| 2 | Spoken word attempt (audio) | Child → System | The child's recorded attempt at one target word |
+| 3 | Target word prompt and model audio | System → Child | The word to say and a model pronunciation to listen to |
+| 4 | Feedback message and animation | System → Child | An age-appropriate message and animation based on the score |
+| 5 | Report request | Caregiver → System | Asks for the Child Progress Report |
+| 6 | Child Progress Report (PDF) | System → Caregiver | Star ratings, streaks, and encouraging visuals. No technical numbers |
+| 7 | Report request | SLP → System | Asks for the Clinician Report |
+| 8 | Clinician Report (PDF and CSV) | System → SLP | Phoneme-level accuracy, error patterns, and session history |
 
 ---
 
 ## Level 1 — System Decomposition
 
+Process 0 is broken into seven processes and three data stores.
+
 ```mermaid
 flowchart TB
-    CHILD[["Child / Examinee"]]
-    EXAM[["Examiner / Parent / SLP"]]
+    CG[["Caregiver"]]
+    CH[["Child"]]
+    SLP[["SLP"]]
 
-    P1(("1.0 Manage Practice Session"))
-    P2(("2.0 Capture & Transcribe"))
-    P3(("3.0 Compute Metrics"))
-    P4(("4.0 Manage History"))
-    P5(("5.0 Generate Report"))
+    P1(("1.0\nManage Session and\nTarget Words"))
+    P2(("2.0\nCapture and\nPreprocess Audio"))
+    P3(("3.0\nRecognize Speech\n(HuBERT-Large)"))
+    P4(("4.0\nScore\nPronunciation"))
+    P5(("5.0\nGenerate\nFeedback"))
+    P6(("6.0\nStore\nSession Data"))
+    P7(("7.0\nGenerate Progress\nReports"))
 
-    D1[("D1 Word Bank (word / IPA / phonemes)")]
-    D2[("D2 Session History (localStorage)")]
-    D3[("D3 Fine-tuned HuBERT")]
+    D1[("D1  Target Word Metadata")]
+    D2[("D2  Session and Attempt\nRecords (SQLite)")]
+    D3[("D3  Attempt History\n(localStorage)")]
 
-    CHILD -- "category / word selection" --> P1
-    D1 -- "word, IPA, phonemes" --> P1
-    P1 -- "target word + TTS audio" --> CHILD
+    CG -- "participant code and session start" --> P1
+    D1 -- "target word metadata" --> P1
+    P1 -- "target word prompt and model audio" --> CH
+    P1 -- "active session and target word" --> P2
 
-    CHILD -- "recorded audio (webm)" --> P2
-    P2 <-- "acoustic frames / logits" --> D3
-    P2 -- "transcript text" --> P3
+    CH -- "spoken attempt (audio)" --> P2
+    P2 -- "standardized audio and target word" --> P3
+    P3 -- "decoded transcript" --> P4
+    P4 -- "pronunciation accuracy (Sacc)" --> P5
+    P5 -- "feedback message and animation" --> CH
 
-    P3 -- "Sacc, WER, PER, S/D/I, alignment" --> CHILD
-    P3 -- "attempt record" --> P4
+    P4 -- "attempt results (PER, WER, Sacc, error matrix)" --> P6
+    P6 -- "timestamped attempt history" --> D3
+    P6 -- "session and attempt records" --> D2
 
-    P4 <-- "read / write attempts" --> D2
-    EXAM -- "view / clear history" --> P4
-    P4 -- "attempt list" --> EXAM
+    D3 -- "attempt history" --> P7
+    D2 -- "session records and phoneme error matrices" --> P7
+    CG -- "report request" --> P7
+    SLP -- "report request" --> P7
+    P7 -- "Child Progress Report (PDF)" --> CG
+    P7 -- "Clinician Report (PDF and CSV)" --> SLP
+```
 
-    P4 -- "all attempts" --> P5
-    EXAM -- "child name/age + generate request" --> P5
-    P5 -- "PDF report" --> EXAM
+| Process | Name | Summary | Manuscript module |
+|---------|------|---------|-------------------|
+| 1.0 | Manage Session and Target Words | Starts a session from the participant code, reads word data from D1, and gives the child the target word and model audio | (session setup) |
+| 2.0 | Capture and Preprocess Audio | Records the attempt with MediaRecorder and standardizes it: 16 kHz, mono, 16-bit PCM, peak-normalized to -1.0 dBFS, silence trimmed by VAD | Audio Capture Engine |
+| 3.0 | Recognize Speech (HuBERT-Large) | Sends the audio to the FastAPI backend, which returns a transcript (see Level 2) | ASR backend |
+| 4.0 | Score Pronunciation | Converts text to phonemes, aligns with Levenshtein, and computes PER, WER, Sacc, and the error matrix | Scoring Engine |
+| 5.0 | Generate Feedback | Turns Sacc into a message and animation for the child | Feedback System |
+| 6.0 | Store Session Data | Saves attempt results to D2 (SQLite) and the timestamped history to D3 (localStorage) | Persistence Layer |
+| 7.0 | Generate Progress Reports | Builds the Child Progress Report (PDF) and the Clinician Report (PDF and CSV) | Progress Report Generator |
+
+Data stores
+
+| Store | Contents | Physical form |
+|-------|----------|---------------|
+| D1 Target Word Metadata | Target words, IPA, and phoneme sequences (GFTA-derived) | Word metadata managed by the FastAPI backend |
+| D2 Session and Attempt Records | Sessions, attempts, scores, and phoneme error matrices | SQLite database behind the FastAPI backend |
+| D3 Attempt History | Timestamped attempt history for each browser | Browser `localStorage` |
+
+Note: the Level 1 flow directions for "attempt history" (D3 to 7.0) and "session records and phoneme error matrices" (D2 to 7.0) are read from the PDF labels. Please check them against your drawio file.
+
+---
+
+## Level 2 — Decomposition of Process 3.0 (Recognize Speech, HuBERT-Large)
+
+```mermaid
+flowchart TB
+    P2(("2.0\nCapture and\nPreprocess Audio"))
+    P4(("4.0\nScore\nPronunciation"))
+
+    P31(("3.1\nReceive Audio via\nFastAPI Endpoint"))
+    P32(("3.2\nExtract Acoustic Frame\nRepresentations (HuBERT)"))
+    P33(("3.3\nCompute Frame-Level\nPosterior Probabilities"))
+    P34(("3.4\nDecode CTC Output into\nGrapheme Transcript"))
+
+    P2 -- "standardized audio" --> P31
+    P31 -- "audio waveform" --> P32
+    P32 -- "contextualized frame representations" --> P33
+    P33 -- "posterior probabilities per 20 ms frame" --> P34
+    P34 -- "decoded transcript" --> P4
 ```
 
 | Process | Name | Summary |
 |---------|------|---------|
-| 1.0 | Manage Practice Session | Renders word categories/grid from D1, handles word selection, plays TTS |
-| 2.0 | Capture & Transcribe Speech Attempt | Records audio in-browser, sends it to the EchoVoice ASR backend, gets back a transcript (decomposed in Level 2) |
-| 3.0 | Compute Assessment Metrics | Converts transcript to phonemes, runs Levenshtein alignment, computes Sacc/WER/PER |
-| 4.0 | Manage Session History | Persists and retrieves attempt records in the browser |
-| 5.0 | Generate Assessment Report | Aggregates history into a formatted PDF via jsPDF |
+| 3.1 | Receive Audio via FastAPI Endpoint | The backend accepts the standardized audio upload and loads the waveform |
+| 3.2 | Extract Acoustic Frame Representations (HuBERT) | A CNN encoder and a 24-layer transformer turn the waveform into one representation per 20 ms frame |
+| 3.3 | Compute Frame-Level Posterior Probabilities | A linear layer gives, for each 20 ms frame, the probability of each grapheme token |
+| 3.4 | Decode CTC Output into Grapheme Transcript | CTC decoding collapses repeats and blanks into the transcript text |
 
-**Data stores**
-
-| Store | Contents | Physical implementation |
-|-------|----------|--------------------------|
-| D1 Word Bank | Static list of target words, IPA strings, phoneme arrays, grouped by category | JS object `WORD_BANK` embedded in `index.html` |
-| D2 Session History | Every scored attempt in the current session | Browser `localStorage`, key `echovoice_history` |
-| D3 Fine-tuned Model | HuBERT-Large weights fine-tuned on PERCEPT-GFTA (BCS) | Files under the `ECHOVOICE_MODEL_DIR` folder, loaded by `app.py` at startup |
-
-The trust boundary sits between processes **1.0/3.0/4.0/5.0** (all run in the
-browser) and **2.0**, whose inner steps cross the network to the EchoVoice ASR
-backend — see Level 2.
-
----
-
-## Level 2 — Decomposition of Process 2.0 (Capture & Transcribe)
-
-```mermaid
-flowchart TB
-    CHILD[["Child / Examinee"]]
-    P3(("3.0 Compute Metrics"))
-    D3[("D3 Fine-tuned HuBERT")]
-
-    subgraph BROWSER["Browser (index.html)"]
-        P21(("2.1 Record Audio (MediaRecorder)"))
-        P22(("2.2 Transmit Audio (POST /api/transcribe)"))
-        P27(("2.7 Return Transcript"))
-    end
-
-    subgraph BACKEND["EchoVoice ASR Backend (app.py)"]
-        P23(("2.3 Decode & Resample to 16 kHz mono"))
-        P24(("2.4 Extract Acoustic Features"))
-        P25(("2.5 Run CTC Inference (HuBERT)"))
-        P26(("2.6 Greedy CTC Decode"))
-    end
-
-    CHILD -- "microphone stream" --> P21
-    P21 -- "audio blob (webm/opus)" --> P22
-    P22 -- "multipart upload" --> P23
-    P23 -- "waveform (float32, 16 kHz)" --> P24
-    P24 -- "input_values tensor" --> P25
-    P25 <-- "model weights" --> D3
-    P25 -- "logits (frame x vocab)" --> P26
-    P26 -- "transcript string" --> P27
-    P27 -- "JSON {transcript}" --> P22
-    P22 -- "spoken text" --> P3
-```
-
-| Process | Name | Where it runs | Implementation |
-|---------|------|----------------|----------------|
-| 2.1 | Record Audio | Browser | `navigator.mediaDevices.getUserMedia` + `MediaRecorder` capture the child's attempt |
-| 2.2 | Transmit Audio | Browser → Backend | `transcribeWithBackend()` `fetch()`-POSTs the blob as multipart form data to `/api/transcribe` |
-| 2.3 | Decode & Resample Audio | Backend | `_decode_audio()`: `soundfile`/`librosa` decode the container and resample to 16 kHz mono |
-| 2.4 | Extract Acoustic Features | Backend | `AutoProcessor` normalizes the waveform into `input_values` |
-| 2.5 | Run CTC Inference | Backend | Fine-tuned `AutoModelForCTC` (HuBERT) forward pass produces per-frame logits |
-| 2.6 | Greedy CTC Decode | Backend | `argmax` over logits, then `processor.batch_decode` collapses repeats/blanks into text |
-| 2.7 | Return Transcript | Backend → Browser | `handleRecordedAudio()` unpacks the JSON response and hands it to Process 3.0 |
-
-This is the only network hop in the system; every other process (1.0, 3.0, 4.0,
-5.0) executes entirely client-side in `index.html`.
+The transcript is made of graphemes. Grapheme-to-phoneme conversion happens later, inside process 4.0.

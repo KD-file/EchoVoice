@@ -1,79 +1,112 @@
 # HIPO Diagram — EchoVoice
 ### (Hierarchy plus Input-Process-Output)
 
-Module names match the **actual function names** in `index.html` / `app.py`.
+The numbering now matches the seven processes in `01_DFD.md`. The manuscript names five modules; each one is tied to a process number below.
+
+| Manuscript module | HIPO module |
+|---|---|
+| Audio Capture Engine | 2.0 |
+| Scoring Engine | 4.0 |
+| Feedback System | 5.0 |
+| Persistence Layer | 6.0 |
+| Progress Report Generator | 7.0 |
 
 ## 1. Visual Table of Contents (VTOC)
 
 ```mermaid
 flowchart TB
-    M0["0.0 EchoVoice System (index.html)"]
-    M0 --> M1["1.0 Practice Session (renderCategories, renderWordGrid, selectWord, speakWord)"]
-    M0 --> M2["2.0 Capture & Transcribe (startRecording, stopRecording, handleRecordedAudio, transcribeWithBackend)"]
-    M0 --> M3["3.0 Assessment Engine (analyzeAttempt)"]
-    M0 --> M4["4.0 History Manager (renderHistory, clear history)"]
-    M0 --> M5["5.0 Report Generator (updateReportSummary, generatePDF)"]
+    M0["0.0 EchoVoice System"]
+    M0 --> M1["1.0 Manage Session and Target Words"]
+    M0 --> M2["2.0 Capture and Preprocess Audio"]
+    M0 --> M3["3.0 Recognize Speech (HuBERT-Large)"]
+    M0 --> M4["4.0 Score Pronunciation"]
+    M0 --> M5["5.0 Generate Feedback"]
+    M0 --> M6["6.0 Store Session Data"]
+    M0 --> M7["7.0 Generate Progress Reports"]
 
-    M1 --> M1a["1.1 renderCategories"]
-    M1 --> M1b["1.2 renderWordGrid"]
-    M1 --> M1c["1.3 selectWord"]
-    M1 --> M1d["1.4 speakWord"]
+    M1 --> M1a["1.1 Start Session (participant code)"]
+    M1 --> M1b["1.2 Select Target Word"]
+    M1 --> M1c["1.3 Play Model Audio"]
 
-    M2 --> M2a["2.1 startRecording"]
-    M2 --> M2b["2.2 stopRecording"]
-    M2 --> M2c["2.3 transcribeWithBackend"]
-    M2 --> M2d["2.4 handleRecordedAudio"]
+    M2 --> M2a["2.1 Record Audio"]
+    M2 --> M2b["2.2 Standardize Audio"]
 
-    M3 --> M3a["3.1 wordToPhonemes"]
-    M3 --> M3b["3.2 computeWER"]
-    M3 --> M3c["3.3 computePER"]
-    M3 --> M3d["3.4 compute Sacc + render chips"]
+    M3 --> M3a["3.1 Receive Audio via FastAPI"]
+    M3 --> M3b["3.2 Extract Frame Representations"]
+    M3 --> M3c["3.3 Compute Posterior Probabilities"]
+    M3 --> M3d["3.4 Decode CTC to Transcript"]
 
-    M4 --> M4a["4.1 renderHistory"]
-    M4 --> M4b["4.2 clear history"]
+    M4 --> M4a["4.1 Text-to-Phoneme"]
+    M4 --> M4b["4.2 Compute WER"]
+    M4 --> M4c["4.3 Compute PER"]
+    M4 --> M4d["4.4 Compute Sacc"]
+    M4 --> M4e["4.5 Build Phoneme Error Matrix"]
 
-    M5 --> M5a["5.1 updateReportSummary"]
-    M5 --> M5b["5.2 generatePDF"]
+    M5 --> M5a["5.1 Pick Feedback Message"]
+    M5 --> M5b["5.2 Show Animation"]
+
+    M6 --> M6a["6.1 Save to SQLite (D2)"]
+    M6 --> M6b["6.2 Save to localStorage (D3)"]
+
+    M7 --> M7a["7.1 Build Child Progress Report (PDF)"]
+    M7 --> M7b["7.2 Build Clinician Report (PDF)"]
+    M7 --> M7c["7.3 Export Clinician CSV"]
 ```
 
 ## 2. IPO Charts
 
-### 2.0 Capture & Transcribe Speech Attempt
+### 1.0 Manage Session and Target Words
 
 | | |
 |---|---|
-| **Input** | Microphone audio stream (child's spoken attempt) |
-| **Process** | 1. `startRecording`: request mic permission and start `MediaRecorder`.<br>2. `stopRecording`: assemble recorded chunks into a Blob.<br>3. If Blob is too small (< 500 bytes) → treat as silence, prompt retry.<br>4. `transcribeWithBackend`: POST Blob as multipart form data to `/api/transcribe`.<br>5. `handleRecordedAudio`: on success, pass the transcript to module 3.0; on network/HTTP error, show the backend-offline banner and a toast. |
-| **Output** | `spokenText` (lowercase transcript string) passed to module 3.0, **or** an error/toast if the backend could not be reached |
+| **Input** | Participant code, session start, word selection, "listen" request, word data from D1 |
+| **Process** | Start a session tied to the participant code. Load the target word, IPA, and phonemes from D1. Play the model audio when asked. |
+| **Output** | Active session and target word (to 2.0), target word prompt and model audio (to the child) |
 
-### 3.0 Compute Assessment Metrics
-
-| | |
-|---|---|
-| **Input** | `targetWord`, `targetPhonemes[]` (from Word Bank), `spokenText` (from module 2.0) |
-| **Process** | 1. `wordToPhonemes(spokenText)` → spoken phonemes.<br>2. `computeWER`: word-level Levenshtein alignment → WER, substitutions/deletions/insertions at word level.<br>3. `computePER`: phoneme-level Levenshtein alignment → PER, `Sp`/`Dp`/`Ip`.<br>4. `Sacc = max(0, (Np − (Sp+Dp+Ip)) / Np) × 100`.<br>5. Render the per-phoneme alignment chips (correct / substitution / deletion / insertion).<br>6. Build the attempt record and save it to history (module 4.0). |
-| **Output** | Metrics object `{Sacc, WER, PER, Sp, Dp, Ip, alignment[]}` rendered to the Result Panel and appended to module 4.0 as a history entry |
-
-### 4.0 Manage Session History
+### 2.0 Capture and Preprocess Audio
 
 | | |
 |---|---|
-| **Input** | Attempt record from module 3.0; user actions (view history tab, clear history) |
-| **Process** | 1. Push new attempt onto in-memory `sessionHistory` array.<br>2. Serialize and persist to `localStorage['echovoice_history']`.<br>3. `renderHistory`: on the History tab, read and render all entries newest-first.<br>4. On "Clear All", confirm then wipe both the array and the `localStorage` key. |
-| **Output** | Updated on-screen history list; persisted history available to module 5.0 |
+| **Input** | Child's microphone audio, active target word |
+| **Process** | 1. Ask for microphone permission and start `MediaRecorder`.<br>2. When recording stops, put the chunks into one audio file.<br>3. If the file is too small, treat it as silence and ask the child to try again.<br>4. Standardize the audio: 16 kHz, mono, 16-bit PCM.<br>5. Peak-normalize to -1.0 dBFS.<br>6. Trim silence at the start and end with the voice activity detector (VAD). |
+| **Output** | Standardized audio and target word (to 3.0), or an error message if recording failed |
 
-### 5.0 Generate Assessment Report
-
-| | |
-|---|---|
-| **Input** | `sessionHistory[]`, child name/age, session date |
-| **Process** | 1. `updateReportSummary`: compute totals, averages (avgWER, avgPER, avgAcc), and best word.<br>2. `generatePDF`: group attempts by target word; compute per-word average accuracy/WER/PER and S/D/I totals.<br>3. Lay out the PDF (header, summary boxes, per-word table via `jspdf-autotable`, detailed attempt log, interpretation notes, ICC reference scale, footer).<br>4. Trigger a browser download named `EchoVoice_Report_<child>_<date>.pdf`. |
-| **Output** | Downloaded PDF assessment report |
-
-### 1.0 Manage Practice Session
+### 3.0 Recognize Speech (HuBERT-Large)
 
 | | |
 |---|---|
-| **Input** | Category click, word-card click, "Listen First"/speaker-icon click |
-| **Process** | `renderCategories`: build category buttons. `renderWordGrid`: filter `WORD_BANK` by selected category and render word cards (marking ones already tested). `selectWord`: populate the active-word panel. `speakWord`: call `speechSynthesis` to pronounce the word. |
-| **Output** | `selectedWord` (word/IPA/phonemes) available to modules 2.0 and 3.0 |
+| **Input** | Standardized audio |
+| **Process** | 1. Receive the audio at the FastAPI endpoint.<br>2. Turn the waveform into one representation per 20 ms frame.<br>3. Compute the probability of each grapheme token for every frame.<br>4. Decode the CTC output into a grapheme transcript. |
+| **Output** | Decoded transcript (to 4.0), or an error if the backend cannot be reached |
+
+### 4.0 Score Pronunciation
+
+| | |
+|---|---|
+| **Input** | Decoded transcript, target word and target phonemes |
+| **Process** | 1. Convert the transcript to phonemes.<br>2. Align words with Levenshtein to get WER.<br>3. Align phonemes with Levenshtein to get PER and the counts Sp, Dp, Ip.<br>4. Compute Sacc = max(0, (Np − (Sp + Dp + Ip)) / Np) × 100.<br>5. Build the phoneme error matrix from the alignment. |
+| **Output** | Sacc (to 5.0). PER, WER, Sacc, and error matrix (to 6.0) |
+
+### 5.0 Generate Feedback
+
+| | |
+|---|---|
+| **Input** | Sacc |
+| **Process** | Choose a message by score. 90 to 100 gives "Very Good!" with a star animation. Below 30 gives "Let's Practice Together!" with a replay prompt. Scores in between get an encouraging message. |
+| **Output** | Feedback message and animation (to the child) |
+
+### 6.0 Store Session Data
+
+| | |
+|---|---|
+| **Input** | Attempt results (PER, WER, Sacc, error matrix) |
+| **Process** | Save the session and attempt records to SQLite (D2). Save the timestamped attempt history to localStorage (D3). |
+| **Output** | Saved records in D2 and D3 |
+
+### 7.0 Generate Progress Reports
+
+| | |
+|---|---|
+| **Input** | Report request from the caregiver or the SLP, attempt history (D3), session records and phoneme error matrices (D2) |
+| **Process** | For the caregiver: build the Child Progress Report with star ratings, streaks, and badges, and no technical numbers. For the SLP: build the Clinician Report with phoneme error matrices, error-pattern trends, and session metrics, plus a CSV export. Show only the anonymized session identifier in both. |
+| **Output** | Child Progress Report (PDF), Clinician Report (PDF and CSV) |

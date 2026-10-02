@@ -1,79 +1,122 @@
 # Structured English — EchoVoice
 
-Structured English versions of the DFD's primitive processes, using only
-SEQUENCE, IF‑THEN‑ELSE, and DO WHILE/DO UNTIL constructs (no free-form prose),
-per Gane–Sarson process-specification conventions.
+Structured English for the processes in `01_DFD.md`. Only SEQUENCE, IF-THEN-ELSE, and DO WHILE / FOR loops are used.
 
 ---
 
-## Process 2.0 — CAPTURE AND TRANSCRIBE SPEECH ATTEMPT
+## Process 1.0 — MANAGE SESSION AND TARGET WORDS
 
 ```
-PROCESS CaptureAndTranscribe
+PROCESS ManageSession
+  ON session start:
+      READ participant code entered by caregiver
+      IF participant code is empty THEN
+          DISPLAY "enter participant code"
+          EXIT process
+      ENDIF
+      CREATE new session WITH anonymized session identifier
+      LOAD target word metadata FROM D1
+
+  ON word selected:
+      SET targetWord = selected word's text
+      SET targetPhonemes = selected word's phoneme list
+      DISPLAY target word and IPA
+
+  ON "listen" clicked:
+      PLAY model audio of targetWord
+END PROCESS
+```
+
+---
+
+## Process 2.0 — CAPTURE AND PREPROCESS AUDIO
+
+```
+PROCESS CaptureAndPreprocess
   IF browser does not support MediaRecorder AND getUserMedia THEN
-      DISPLAY "unsupported browser" banner
+      DISPLAY "unsupported browser" message
       DISABLE microphone button
       EXIT process
   ENDIF
 
   ON microphone button clicked:
-      IF no word is selected OR a transcription is already in progress THEN
+      IF no word is selected OR a transcription is in progress THEN
           EXIT process
       ENDIF
 
       IF not currently recording THEN
           REQUEST microphone permission
           IF permission denied THEN
-              DISPLAY toast "please allow microphone access"
+              DISPLAY "please allow microphone access"
               EXIT process
           ENDIF
           START MediaRecorder
-          SET recording status to "listening"
+          SET status to "listening"
       ELSE
           STOP MediaRecorder
       ENDIF
 
   ON recording stopped:
-      ASSEMBLE recorded chunks INTO audio blob
-      IF audio blob size < 500 bytes THEN
-          DISPLAY toast "didn't hear anything, try again"
+      PUT recorded chunks INTO one audio file
+      IF audio file is too small THEN
+          DISPLAY "didn't hear anything, try again"
           EXIT process
       ENDIF
 
-      SET status to "analyzing"
-      SEND audio blob TO backend endpoint /api/transcribe
-
-      IF backend responds successfully THEN
-          RECEIVE spokenText
-          IF spokenText is empty THEN
-              DISPLAY toast "didn't catch that, try again"
-          ELSE
-              CALL AnalyzeAttempt(spokenText)
-          ENDIF
-      ELSE
-          DISPLAY "backend offline" banner
-          DISPLAY toast with error detail
+      CONVERT audio to 16 kHz, mono, 16-bit PCM
+      SCALE audio so its peak is -1.0 dBFS
+      TRIM silence at the start and end using VAD
+      IF nothing is left after trimming THEN
+          DISPLAY "didn't hear anything, try again"
+          EXIT process
       ENDIF
 
-      RESET status to "ready"
+      PASS standardized audio AND target word TO Process 3.0
 END PROCESS
 ```
 
 ---
 
-## Process 3.0 — COMPUTE ASSESSMENT METRICS (`AnalyzeAttempt`)
+## Process 3.0 — RECOGNIZE SPEECH (HuBERT-Large)
 
 ```
-PROCESS AnalyzeAttempt (spokenText)
+PROCESS RecognizeSpeech
+  SET status to "analyzing"
+  SEND standardized audio TO backend endpoint /api/transcribe
+
+  IF backend responds successfully THEN
+      ON backend:
+          RECEIVE audio at FastAPI endpoint
+          EXTRACT frame representations (one per 20 ms)
+          COMPUTE probability of each grapheme token for each frame
+          DECODE CTC output INTO grapheme transcript
+      RECEIVE transcript
+      IF transcript is empty THEN
+          DISPLAY "didn't catch that, try again"
+      ELSE
+          PASS transcript TO Process 4.0
+      ENDIF
+  ELSE
+      DISPLAY "backend offline" message with error detail
+  ENDIF
+
+  RESET status to "ready"
+END PROCESS
+```
+
+---
+
+## Process 4.0 — SCORE PRONUNCIATION
+
+```
+PROCESS ScorePronunciation (transcript)
   IF no word is selected THEN
       EXIT process
   ENDIF
 
-  SET targetWord      = selected word's text
-  SET targetPhonemes  = selected word's phoneme list
-  SET spokenPhonemes  = ConvertToPhonemes(spokenText)
+  SET spokenPhonemes = ConvertToPhonemes(transcript)
 
-  COMPUTE werResult = AlignAndScore(targetWord AS words, spokenText AS words)
+  COMPUTE werResult = AlignAndScore(targetWord AS words, transcript AS words)
   COMPUTE perResult = AlignAndScore(targetPhonemes, spokenPhonemes)
 
   SET Np = COUNT(targetPhonemes)
@@ -87,110 +130,104 @@ PROCESS AnalyzeAttempt (spokenText)
       SET Sacc = 0
   ENDIF
 
-  DISPLAY target word, spoken text, and the six metric cards
-          (Sacc, WER, PER, substitutions, deletions, insertions)
-  RENDER phoneme alignment chips from perResult.alignment
-
-  BUILD attempt record WITH
-          timestamp, child name, child age, target word/IPA,
-          spoken text, target/spoken phonemes, WER, PER, Sacc,
-          Sp, Dp, Ip, alignment
-  APPEND attempt record TO session history
-  SAVE session history TO local storage
-
-  IF Sacc >= 90 THEN
-      DISPLAY toast "perfect pronunciation"
-  ELSE IF Sacc >= 70 THEN
-      DISPLAY toast "great job"
-  ELSE IF Sacc >= 50 THEN
-      DISPLAY toast "good try"
-  ELSE
-      DISPLAY toast "listen carefully and try again"
-  ENDIF
-
-  REFRESH word grid to mark this word as tested
+  BUILD phoneme error matrix FROM perResult.alignment
+  PASS Sacc TO Process 5.0
+  PASS PER, WER, Sacc, and error matrix TO Process 6.0
 END PROCESS
 ```
 
----
-
-## Process — ALIGN AND SCORE (shared by WER and PER)
+AlignAndScore is the Levenshtein alignment from `05_pseudocode.md`, used for both words and phonemes:
 
 ```
 PROCESS AlignAndScore (reference[], hypothesis[])
-  SET refLen = COUNT(reference)
-  SET hypLen = COUNT(hypothesis)
-
-  INITIALIZE dp TABLE of size (refLen+1) BY (hypLen+1)
-  FOR i = 0 TO refLen: SET dp[i][0] = i
-  FOR j = 0 TO hypLen: SET dp[0][j] = j
-
-  FOR i = 1 TO refLen
-      FOR j = 1 TO hypLen
-          IF reference[i] EQUALS hypothesis[j] THEN
-              SET cost = 0
-          ELSE
-              SET cost = 1
-          ENDIF
-          SET dp[i][j] = MIN(
-              dp[i-1][j]   + 1,     -- deletion
-              dp[i][j-1]   + 1,     -- insertion
-              dp[i-1][j-1] + cost   -- match or substitution
-          )
-      ENDFOR
-  ENDFOR
-
-  TRACE BACK through dp FROM (refLen, hypLen) TO (0,0)
-      CLASSIFYING each step AS correct, substitution, deletion, or insertion
-      BUILDING an ordered alignment list
-
-  SET errorRate = IF refLen > 0
-                      THEN (substitutions+deletions+insertions) / refLen × 100
+  FILL dp TABLE using the cheapest of deletion, insertion, or match/substitution
+  TRACE BACK through dp TO classify each step AS
+          correct, substitution, deletion, or insertion
+  SET errorRate = IF COUNT(reference) > 0
+                      THEN (substitutions + deletions + insertions) / COUNT(reference) × 100
                       ELSE 0
-
   RETURN errorRate, substitutions, deletions, insertions, alignment
 END PROCESS
 ```
 
 ---
 
-## Process 5.0 — GENERATE ASSESSMENT REPORT
+## Process 5.0 — GENERATE FEEDBACK
 
 ```
-PROCESS GenerateReport
-  IF session history is empty THEN
-      DISPLAY toast "No data to generate report!"
+PROCESS GenerateFeedback (Sacc)
+  IF Sacc >= 90 THEN
+      DISPLAY "Very Good!" WITH star animation
+  ELSE IF Sacc >= 30 THEN
+      DISPLAY encouraging message
+  ELSE
+      DISPLAY "Let's Practice Together!" WITH replay prompt
+  ENDIF
+END PROCESS
+```
+
+The manuscript gives wording only for 90 to 100 and below 30. The middle band wording (30 to 89) still has to be chosen.
+
+---
+
+## Process 6.0 — STORE SESSION DATA
+
+```
+PROCESS StoreSessionData (attemptResults)
+  BUILD attempt record WITH
+          timestamp, session identifier, target word and IPA,
+          transcript, PER, WER, Sacc, Sp, Dp, Ip, alignment
+  SAVE attempt record TO SQLite (D2)
+  APPEND timestamped entry TO localStorage history (D3)
+  IF saving to SQLite fails THEN
+      DISPLAY "could not save to server"
+  ENDIF
+END PROCESS
+```
+
+---
+
+## Process 7.0 — GENERATE PROGRESS REPORTS
+
+```
+PROCESS GenerateReport (requester)
+  READ attempt history FROM D3
+  READ session records and phoneme error matrices FROM D2
+  IF no attempts exist THEN
+      DISPLAY "no attempts to report"
       EXIT process
   ENDIF
 
-  GROUP session history entries BY target word
-  FOR EACH word group
-      COMPUTE average accuracy, average WER, average PER,
-              and total substitutions/deletions/insertions
-  ENDFOR
+  IF requester is caregiver THEN
+      COMPUTE star ratings, streaks, and badges
+      BUILD Child Progress Report (PDF) WITH stars, streaks, badges,
+              and encouraging messages
+      EXCLUDE all technical metrics and phoneme error matrices
+      SAVE AS PDF
+  ELSE IF requester is SLP THEN
+      GROUP attempts BY target word
+      COMPUTE average PER, average WER, and total Sp, Dp, Ip
+      COMPUTE phoneme error matrix AND error-pattern trends
 
-  COMPUTE avgPER  = MEAN of all attempts' PER
-  COMPUTE avgWER  = MEAN of all attempts' WER
-  COMPUTE totalSubs, totalDels, totalIns ACROSS all attempts
-
-  BUILD clinical interpretation notes:
-      IF avgPER <= 15  THEN note "within target threshold"
-      ELSE IF avgPER <= 30 THEN note "moderate, practice recommended"
-      ELSE note "exceeds 30%, clinical consultation advised"
-
-      IF avgWER <= 20 THEN note "acceptable word-level recognition"
-      ELSE note "further evaluation recommended"
-
-      IF totalSubs > (totalDels + totalIns) THEN
-          note "substitutions predominant — articulatory placement difficulty"
+      IF average PER < 15 THEN
+          NOTE "meets PER benchmark"
+      ELSE
+          NOTE "above PER benchmark, review with SLP"
       ENDIF
-      IF totalDels > totalSubs THEN
-          note "deletions elevated — possible omission pattern"
+      IF average WER < 20 THEN
+          NOTE "meets WER benchmark"
+      ELSE
+          NOTE "above WER benchmark, review with SLP"
       ENDIF
 
-  RENDER PDF WITH header, summary table, detailed attempt log,
-             interpretation notes, ICC reference scale, footer
-  SAVE PDF AS "EchoVoice_Report_<childName>_<sessionDate>.pdf"
-  DISPLAY toast "PDF report downloaded"
+      BUILD Clinician Report (PDF) WITH session metrics, error matrix,
+              trends, session history, and notes
+      EXPORT same data AS CSV
+  ENDIF
+
+  SHOW only the anonymized session identifier in the report
+  DISPLAY "report downloaded"
 END PROCESS
 ```
+
+PER below 15 and WER below 20 are engineering benchmarks from the manuscript. They are not clinical standards.

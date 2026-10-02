@@ -86,7 +86,7 @@ ENDPOINT POST /api/transcribe (file: audio)
     inputs      ← processor(waveform, samplingRate = 16000)
     logits      ← model.forward(inputs.input_values)        -- no gradient
     predictedIds ← ARGMAX(logits, axis = vocabulary)
-    transcript  ← processor.batch_decode(predictedIds)[0].strip().lower()
+    transcript  ← processor.decode(predictedIds).strip().lower()
 
     RETURN 200 { transcript, model_source, fine_tuned }
 END ENDPOINT

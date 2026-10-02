@@ -1,8 +1,6 @@
 # Data Dictionary — EchoVoice
 
-Covers the logical entities from `06_erd.md`, the physical JSON structures
-actually used by `index.html` today, and the API payloads exchanged with the
-backend in `Source_Code/app.py`.
+Covers the entities in `06_erd.md`, how they are stored (SQLite and localStorage, as in the manuscript and `01_DFD.md`), and the backend API in `Source_Code/app.py`.
 
 ---
 
@@ -13,115 +11,109 @@ backend in `Source_Code/app.py`.
 | Field | Type | Description | Constraints |
 |---|---|---|---|
 | category_id | string | Unique identifier | PK |
-| name | string | Display name, e.g. "Animals", "Food" | Not null |
+| name | string | Display name, e.g. "Animals" | Not null |
 
 ### WORD
 
 | Field | Type | Description | Constraints |
 |---|---|---|---|
 | word_id | string | Unique identifier | PK |
-| category_id | string | Owning category | FK → CATEGORY |
+| category_id | string | Owning category | FK to CATEGORY |
 | text | string | Target word, e.g. "cat" | Not null |
 | ipa | string | IPA transcription, e.g. "/kæt/" | Not null |
-| phonemes_json | string (JSON array) | Ordered phoneme list, e.g. `["k","æ","t"]` | Not null |
+| phonemes_json | string (JSON array) | Ordered phonemes, e.g. `["k","æ","t"]` | Not null |
 
-### CHILD
+### PARTICIPANT
 
 | Field | Type | Description | Constraints |
 |---|---|---|---|
-| child_id | string | Unique identifier | PK |
-| name | string | Child's name as entered by examiner | Optional (defaults to "Unknown") |
-| age_years | int | Child's age | Optional (defaults to "—") |
+| participant_id | string | Unique identifier | PK |
+| participant_code | string | Anonymous code for the child. No name is stored | Not null, unique |
 
 ### SESSION
 
 | Field | Type | Description | Constraints |
 |---|---|---|---|
 | session_id | string | Unique identifier | PK |
-| child_id | string | Owning child | FK → CHILD |
-| session_date | date | Date selected on the Report tab (`#sessionDate`) | Defaults to today |
-| created_at | datetime | When the session started | Not null |
+| participant_id | string | Child who practiced | FK to PARTICIPANT |
+| session_code | string | Anonymized session identifier shown on reports | Not null, unique |
+| started_at | datetime | When the caregiver started the session | Not null |
 
 ### ASR_MODEL
 
 | Field | Type | Description | Constraints |
 |---|---|---|---|
 | model_id | string | Unique identifier | PK |
-| model_source | string | Path or hub ID the backend loaded, e.g. `./hubert-bcs` | Not null |
-| fine_tuned | boolean | `true` if the child-speech checkpoint was used, `false` if the base fallback was used | Not null |
-| version_label | string | Optional human label (e.g. checkpoint date) | Optional |
+| model_source | string | Folder or hub ID the backend loaded, e.g. `./hubert-bcs` | Not null |
+| fine_tuned | boolean | `true` for the child-speech checkpoint, `false` for the base fallback | Not null |
+| version_label | string | Optional label, e.g. checkpoint date | Optional |
 
 ### ATTEMPT
 
 | Field | Type | Description | Constraints |
 |---|---|---|---|
 | attempt_id | string | Unique identifier | PK |
-| session_id | string | Owning session | FK → SESSION |
-| word_id | string | Target word attempted | FK → WORD |
-| model_id | string | Model that produced the transcript | FK → ASR_MODEL |
+| session_id | string | Owning session | FK to SESSION |
+| word_id | string | Target word | FK to WORD |
+| model_id | string | Model that made the transcript | FK to ASR_MODEL |
 | timestamp | datetime | When the attempt was scored | Not null |
-| spoken_text | string | Lowercased ASR transcript | Not null (may be empty string on failed attempts) |
-| wer_percent | float | Word Error Rate, 0-100+ | ≥ 0 |
-| per_percent | float | Phoneme Error Rate, 0-100+ | ≥ 0 |
-| accuracy_sacc | float | Pronunciation accuracy score, 0-100 | 0 ≤ value ≤ 100 |
-| substitutions | int | Phoneme substitutions (Sp) | ≥ 0 |
-| deletions | int | Phoneme deletions (Dp) | ≥ 0 |
-| insertions | int | Phoneme insertions (Ip) | ≥ 0 |
+| spoken_text | string | Lowercase transcript | Not null (may be empty) |
+| wer_percent | float | Word Error Rate, (Sw + Dw + Iw) / Nw × 100 | 0 or more |
+| per_percent | float | Phoneme Error Rate, (Sp + Dp + Ip) / Np × 100 | 0 or more |
+| accuracy_sacc | float | max(0, (Np − (Sp + Dp + Ip)) / Np) × 100 | 0 to 100 |
+| substitutions | int | Phoneme substitutions (Sp) | 0 or more |
+| deletions | int | Phoneme deletions (Dp) | 0 or more |
+| insertions | int | Phoneme insertions (Ip) | 0 or more |
 
 ### PHONEME_ALIGNMENT
 
 | Field | Type | Description | Constraints |
 |---|---|---|---|
 | alignment_id | string | Unique identifier | PK |
-| attempt_id | string | Owning attempt | FK → ATTEMPT |
-| position | int | Order within the alignment sequence | ≥ 0 |
-| ref_phoneme | string, nullable | Reference (target) phoneme; null for a pure insertion | — |
-| hyp_phoneme | string, nullable | Hypothesis (spoken) phoneme; null for a pure deletion | — |
-| alignment_type | enum | One of `correct`, `substitution`, `deletion`, `insertion` | Not null |
+| attempt_id | string | Owning attempt | FK to ATTEMPT |
+| position | int | Order in the alignment | 0 or more |
+| ref_phoneme | string, nullable | Target phoneme. Null for an insertion | — |
+| hyp_phoneme | string, nullable | Spoken phoneme. Null for a deletion | — |
+| alignment_type | enum | `correct`, `substitution`, `deletion`, or `insertion` | Not null |
 
-### ASSESSMENT_REPORT
+### REPORT
 
 | Field | Type | Description | Constraints |
 |---|---|---|---|
 | report_id | string | Unique identifier | PK |
-| session_id | string | Session it summarizes | FK → SESSION |
-| generated_at | datetime | When the PDF was built | Not null |
-| file_name | string | e.g. `EchoVoice_Report_Juan_2026-09-25.pdf` | Not null |
-| avg_wer | float | Session-wide mean WER | ≥ 0 |
-| avg_per | float | Session-wide mean PER | ≥ 0 |
+| session_id | string | Session it summarizes | FK to SESSION |
+| report_type | enum | `child` or `clinician` | Not null |
+| file_format | enum | `pdf` or `csv` | Not null |
+| generated_at | datetime | When the file was built | Not null |
 
 ---
 
-## 2. Physical Storage (current implementation)
+## 2. Physical Storage
 
-The deployed app has no database — `CHILD`/`SESSION`/`ATTEMPT`/`PHONEME_ALIGNMENT`
-above are all flattened into a single JSON array in `localStorage`.
+### D1 Target Word Metadata
 
-### `WORD_BANK` (constant, embedded in `index.html`)
+Words, IPA, and phonemes. Mapping:
 
-```json
-{
-  "Animals": [
-    { "word": "cat", "ipa": "/kæt/", "phonemes": ["k", "æ", "t"] }
-  ]
-}
-```
+| Field | Maps to ERD |
+|---|---|
+| category (key) | CATEGORY.name |
+| word | WORD.text |
+| ipa | WORD.ipa |
+| phonemes | WORD.phonemes_json |
 
-| Field | Type | Maps to ERD |
-|---|---|---|
-| (top-level key) | string | CATEGORY.name |
-| word | string | WORD.text |
-| ipa | string | WORD.ipa |
-| phonemes | string[] | WORD.phonemes_json |
+### D2 Session and Attempt Records (SQLite)
 
-### `localStorage['echovoice_history']` (array of attempt entries)
+One table for each of PARTICIPANT, SESSION, ATTEMPT, and PHONEME_ALIGNMENT, using the fields in section 1. The phoneme error matrix for the Clinician Report is built from PHONEME_ALIGNMENT, so it is not stored separately.
+
+### D3 Attempt History (`localStorage['echovoice_history']`)
+
+A browser copy of each attempt, kept as a JSON array.
 
 ```json
 {
   "id": 1732500000000,
-  "timestamp": "2026-09-25T10:15:00.000Z",
-  "childName": "Juan",
-  "childAge": "6",
+  "timestamp": "2026-10-03T10:15:00.000Z",
+  "participantCode": "P001",
   "targetWord": "cat",
   "targetIpa": "/kæt/",
   "spokenText": "kaet",
@@ -141,54 +133,96 @@ above are all flattened into a single JSON array in `localStorage`.
 }
 ```
 
-| Field | Type | Maps to ERD |
-|---|---|---|
-| id | number (epoch ms) | ATTEMPT.attempt_id (+ implicit SESSION grouping) |
-| timestamp | ISO 8601 string | ATTEMPT.timestamp |
-| childName, childAge | string | CHILD.name, CHILD.age_years |
-| targetWord, targetIpa | string | WORD.text, WORD.ipa |
-| spokenText | string | ATTEMPT.spoken_text |
-| targetPhonemes, spokenPhonemes | string[] | reference/hypothesis inputs to PHONEME_ALIGNMENT |
-| wer, per, accuracy | float | ATTEMPT.wer_percent, per_percent, accuracy_sacc |
-| subs, dels, ins | int | ATTEMPT.substitutions, deletions, insertions |
-| alignment | object[] | PHONEME_ALIGNMENT rows (one per array element) |
+| Field | Maps to ERD |
+|---|---|
+| id | ATTEMPT.attempt_id |
+| timestamp | ATTEMPT.timestamp |
+| participantCode | PARTICIPANT.participant_code |
+| targetWord, targetIpa | WORD.text, WORD.ipa |
+| spokenText | ATTEMPT.spoken_text |
+| targetPhonemes, spokenPhonemes | Inputs to PHONEME_ALIGNMENT |
+| wer, per, accuracy | ATTEMPT.wer_percent, per_percent, accuracy_sacc |
+| subs, dels, ins | ATTEMPT.substitutions, deletions, insertions |
+| alignment | PHONEME_ALIGNMENT rows |
 
-> Note: `model_id`/`fine_tuned` are **not yet** captured per attempt in the
-> current frontend. Recommended addition: include `model_source` and
-> `fine_tuned` from the `/api/transcribe` response in each history entry, to
-> fully realize the ASR_MODEL relationship in `06_erd.md`.
+Note: the older prototype stored `childName` and `childAge`. The manuscript uses an anonymized participant code and session identifier instead. Also, `model_source` and `fine_tuned` from `/api/transcribe` should be saved with each attempt so the ASR_MODEL link works.
 
 ---
 
 ## 3. API Payloads (`Source_Code/app.py`)
 
-### `GET /api/health` → `HealthResponse`
+This is the backend as it exists now. The `/api/profile` endpoints persist participant/session records in SQLite (D2). Full per-attempt persistence (ATTEMPT, PHONEME_ALIGNMENT, REPORT) is not yet implemented in the backend.
+
+### GET /api/health
 
 | Field | Type | Description |
 |---|---|---|
-| status | string | Always `"ok"` if the process is alive |
-| device | string | `"cuda"` or `"cpu"` — inference device in use |
-| model_source | string | Directory or hub ID currently loaded |
-| fine_tuned | boolean | Whether the loaded model is the child-speech checkpoint |
+| status | string | `"ok"` if the process is running |
+| device | string | `"cuda"` or `"cpu"` |
+| model_source | string | Folder or hub ID currently loaded |
+| fine_tuned | boolean | Whether the child-speech checkpoint is loaded |
 
-### `POST /api/transcribe`
+### POST /api/transcribe
 
-**Request** — `multipart/form-data`
-
-| Field | Type | Description |
-|---|---|---|
-| audio | file | Recorded attempt, any container ffmpeg/soundfile can decode (webm/ogg/wav/m4a) |
-
-**Response 200** — `TranscribeResponse`
+Request: `multipart/form-data`
 
 | Field | Type | Description |
 |---|---|---|
-| transcript | string | Lowercased greedy-CTC decoded text |
-| model_source | string | Same as health check, echoed for traceability |
-| fine_tuned | boolean | Same as health check, echoed for traceability |
+| audio | file | The recorded attempt (webm, ogg, wav, or m4a) |
 
-**Response 400** — error
+Response 200
 
 | Field | Type | Description |
 |---|---|---|
-| detail | string | Human-readable reason (empty upload, undecodable audio, empty decoded audio) |
+| transcript | string | Lowercase grapheme transcript from greedy CTC decoding |
+| model_source | string | Model that was used |
+| fine_tuned | boolean | Whether it was the fine-tuned model |
+
+Response 400
+
+| Field | Type | Description |
+|---|---|---|
+| detail | string | Reason: empty upload, audio that cannot be decoded, or empty decoded audio |
+
+### POST /api/profile
+
+Creates or updates a participant record (upsert by `child_id`) and, if `session_date` is given, reuses or creates the session for that date.
+
+Request: `application/json`
+
+| Field | Type | Description |
+|---|---|---|
+| child_id | string, optional | Existing participant ID to update; omit to create a new one |
+| name | string | Participant display name |
+| age_years | int, optional (0–20) | Participant age |
+| session_date | string, optional | `YYYY-MM-DD`; creates/reuses a SESSION row |
+
+Response 200
+
+| Field | Type | Description |
+|---|---|---|
+| child_id | string | Saved participant ID |
+| name | string | Saved name |
+| age_years | int, nullable | Saved age |
+| session_id | string, nullable | Session row for the given date, if any |
+| session_date | string, nullable | Date of that session |
+
+### GET /api/profile
+
+Returns the most recently created participant plus their latest session.
+
+| Field | Type | Description |
+|---|---|---|
+| child_id | string | Participant ID |
+| name | string | Participant name |
+| age_years | int, nullable | Participant age |
+| session_id | string, nullable | Latest session ID |
+| session_date | string, nullable | Latest session date |
+
+### GET /api/profiles
+
+Lists all saved participants.
+
+| Field | Type | Description |
+|---|---|---|
+| profiles | array | `{ child_id, name, age_years }` for each participant |

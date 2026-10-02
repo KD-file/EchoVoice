@@ -1,21 +1,16 @@
 # Entity Relationship Diagram (ERD) — EchoVoice
 
-The running app persists data only in the browser (`localStorage`), not in a
-relational database — see `07_data_dictionary.md` for the exact physical JSON
-shapes. This ERD is the **logical** data model those JSON structures
-implement, and the model a future multi-device/clinician-facing backend
-(with a real database) would use. It normalizes the current flat attempt
-records into proper entities.
+This ERD follows the manuscript and `01_DFD.md`. Session and attempt records are kept in SQLite (D2), and the browser keeps a timestamped copy of the attempt history in `localStorage` (D3). Children are identified only by a participant code, so no names are stored. Reports show only the anonymized session identifier.
 
 ```mermaid
 erDiagram
     CATEGORY ||--o{ WORD : "groups"
-    CHILD ||--o{ SESSION : "practices in"
+    PARTICIPANT ||--o{ SESSION : "practices in"
     SESSION ||--o{ ATTEMPT : "contains"
     WORD ||--o{ ATTEMPT : "is target of"
     ASR_MODEL ||--o{ ATTEMPT : "transcribes"
     ATTEMPT ||--o{ PHONEME_ALIGNMENT : "aligns to"
-    SESSION ||--o| ASSESSMENT_REPORT : "summarized by"
+    SESSION ||--o{ REPORT : "summarized by"
 
     CATEGORY {
         string category_id PK
@@ -30,17 +25,16 @@ erDiagram
         string phonemes_json
     }
 
-    CHILD {
-        string child_id PK
-        string name
-        int    age_years
+    PARTICIPANT {
+        string participant_id PK
+        string participant_code
     }
 
     SESSION {
         string session_id PK
-        string child_id FK
-        datetime session_date
-        datetime created_at
+        string participant_id FK
+        string session_code
+        datetime started_at
     }
 
     ASR_MODEL {
@@ -74,13 +68,12 @@ erDiagram
         string alignment_type
     }
 
-    ASSESSMENT_REPORT {
+    REPORT {
         string report_id PK
         string session_id FK
+        string report_type
+        string file_format
         datetime generated_at
-        string file_name
-        float  avg_wer
-        float  avg_per
     }
 ```
 
@@ -88,18 +81,16 @@ erDiagram
 
 | Relationship | Cardinality | Meaning |
 |---|---|---|
-| CATEGORY → WORD | 1 to many | Each word belongs to exactly one practice category (e.g. "Animals") |
-| CHILD → SESSION | 1 to many | A child can have multiple practice sessions over time |
-| SESSION → ATTEMPT | 1 to many | Each attempt (one recorded word) belongs to exactly one session |
-| WORD → ATTEMPT | 1 to many | The same target word can be attempted multiple times, in the same or different sessions |
-| ASR_MODEL → ATTEMPT | 1 to many | Every attempt records which model/checkpoint produced its transcript, for reproducibility/versioning |
-| ATTEMPT → PHONEME_ALIGNMENT | 1 to many | The phoneme-by-phoneme alignment (correct/substitution/deletion/insertion) for one attempt |
-| SESSION → ASSESSMENT_REPORT | 1 to 0-or-1 | A report is generated on demand from a session's attempts; a session may have no report yet |
+| CATEGORY to WORD | 1 to many | Each word belongs to one category |
+| PARTICIPANT to SESSION | 1 to many | A child can have many sessions over time |
+| SESSION to ATTEMPT | 1 to many | Each recorded attempt belongs to one session. The pilot plan is 20 GFTA-derived words per child |
+| WORD to ATTEMPT | 1 to many | The same word can be tried many times |
+| ASR_MODEL to ATTEMPT | 1 to many | Each attempt records which model produced its transcript |
+| ATTEMPT to PHONEME_ALIGNMENT | 1 to many | The phoneme-by-phoneme alignment for one attempt |
+| SESSION to REPORT | 1 to many | A session can produce a Child Progress Report (PDF), a Clinician Report (PDF), and a Clinician CSV |
 
-## Why ASR_MODEL is modeled explicitly
+## Notes
 
-Because EchoVoice's scoring depends on which model produced the transcript
-(the fine-tuned child-speech HuBERT vs. the base fallback — see
-`Source_Code/app.py`), each `ATTEMPT` is tied to a specific `ASR_MODEL` record.
-This keeps historical scores interpretable if the model is later retrained or
-the backend temporarily falls back to the base checkpoint.
+- The phoneme error matrix in the Clinician Report is not its own table. It is built by counting the PHONEME_ALIGNMENT rows of type substitution, deletion, and insertion.
+- `report_type` is `child` or `clinician`. `file_format` is `pdf` or `csv`.
+- ASR_MODEL stays in the model so old scores can still be understood if the model is retrained.
