@@ -23,28 +23,144 @@ fine-tuned checkpoint from the Colab training notebook.
 """
 
 import io
+import json
 import logging
 import os
+import re
 import sqlite3
 import tempfile
 import uuid
-from typing import Optional
+from typing import List, Optional
 
-import librosa
-import numpy as np
-import soundfile as sf
-import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from transformers import AutoModelForCTC, AutoProcessor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("echovoice-backend")
 
 # --------------------------------------------------------------------------
+# Grapheme-to-phoneme (single source of truth for PER)
+# --------------------------------------------------------------------------
+# The trainer (hubert_percept_final.py) derives reference/hypothesis phonemes
+# with g2p_en -> ARPAbet, stripping stress digits. Scoring MUST use the same
+# inventory, otherwise app PER is not comparable to the validated PER and the
+# ICC against SLP ratings measures G2P noise instead of pronunciation ability.
+#
+# So phonemization lives here, not in the browser:
+#   1. bundled dictionary (generated from g2p_en/CMUdict) - deterministic,
+#      offline, no nltk needed at runtime
+#   2. g2p_en library - used for any word outside the bundled dictionary
+# Both paths emit the same ARPAbet symbols, so train/serve parity holds.
+_BUNDLED_PHONEMES_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "phonemes.json"
+)
+
+try:
+    with open(_BUNDLED_PHONEMES_PATH, encoding="utf-8") as _fh:
+        _BUNDLED = json.load(_fh)
+    BUNDLED_PHONEMES: dict = {
+        w.lower(): list(p) for w, p in _BUNDLED.get("words", {}).items()
+    }
+except Exception as exc:  # pragma: no cover - depends on deployment
+    logger.warning("Bundled phoneme dictionary unavailable: %s", exc)
+    BUNDLED_PHONEMES = {}
+
+try:
+    from g2p_en import G2p as _G2p
+
+    _G2P_ENGINE = _G2p()
+    G2P_AVAILABLE = True
+except Exception as exc:  # pragma: no cover - depends on environment
+    _G2P_ENGINE = None
+    G2P_AVAILABLE = False
+    logger.warning(
+        "g2p_en unavailable (%s); phonemization limited to the %d bundled words",
+        exc,
+        len(BUNDLED_PHONEMES),
+    )
+
+# Punctuation/stress that must never appear in a scored phoneme sequence.
+_PHONE_STRIP_RE = re.compile(r"^[.,!?;:'\"\-]+$")
+
+
+def phonemize(text: str) -> tuple[List[str], str]:
+    """Convert text to ARPAbet phonemes.
+
+    Returns (phonemes, source) where source is "bundled" or "g2p_en".
+    Raises ValueError when the text cannot be phonemized at all.
+    """
+    cleaned = (text or "").strip().lower()
+    if not cleaned:
+        return [], "bundled"
+
+    hit = BUNDLED_PHONEMES.get(cleaned)
+    if hit:
+        return list(hit), "bundled"
+
+    if _G2P_ENGINE is not None:
+        phones = [
+            re.sub(r"\d", "", p)
+            for p in _G2P_ENGINE(cleaned)
+            if p.strip() and not _PHONE_STRIP_RE.match(p.strip())
+        ]
+        if phones:
+            return phones, "g2p_en"
+
+    raise ValueError(
+        f"No phonemizer available for '{text}'. Install g2p_en or add the word "
+        "to phonemes.json."
+    )
+
+
+def phonemizer_status() -> dict:
+    return {
+        "g2p_available": G2P_AVAILABLE,
+        "bundled_words": len(BUNDLED_PHONEMES),
+        "phonemizer_inventory": "ARPAbet (g2p_en / CMUdict), stress stripped",
+    }
+
+# --------------------------------------------------------------------------
+# Optional machine-learning stack
+# --------------------------------------------------------------------------
+# The acoustic model is optional and off by default: the frontend transcribes
+# with the browser's Web Speech API, so the backend only has to phonemize and
+# serve profiles. When ECHOVOICE_ENABLE_ASR is not set we never import
+# torch/transformers, which keeps a fresh install light and startup instant.
+# The profile/session APIs must keep working even when the model cannot be
+# loaded (checkpoint missing, no network, or torch/transformers not installed),
+# so every import stays guarded and /api/transcribe reports 503 instead.
+ASR_ENABLED = os.environ.get("ECHOVOICE_ENABLE_ASR", "0").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
+ML_DEPS_OK = False
+librosa = np = sf = torch = AutoModelForCTC = AutoProcessor = None
+
+if ASR_ENABLED:
+    try:
+        import librosa
+        import numpy as np
+        import soundfile as sf
+        import torch
+        from transformers import AutoModelForCTC, AutoProcessor
+        ML_DEPS_OK = True
+    except Exception as exc:  # pragma: no cover - depends on environment
+        logger.warning("ML dependencies unavailable; running without the ASR model: %s", exc)
+
+# --------------------------------------------------------------------------
 # Configuration
 # --------------------------------------------------------------------------
+# The acoustic model is OPTIONAL and disabled by default. The frontend
+# transcribes with the browser's Web Speech API, so the only backend work that
+# is genuinely required is phonemization (g2p_en) plus the profile/session
+# APIs. Set ECHOVOICE_ENABLE_ASR=1 to additionally serve /api/transcribe from a
+# HuBERT checkpoint; without it torch/transformers are never imported and the
+# service starts instantly with no multi-gigabyte download.
+#
 # Directory where trainer.save_model()/trainer.save_pretrained() wrote the
 # fine-tuned checkpoint (this is training_args.output_dir, "./hubert-bcs",
 # in hubert_percept_final.py). Override with the ECHOVOICE_MODEL_DIR env var.
@@ -60,7 +176,7 @@ TARGET_SAMPLE_RATE = 16000
 # Comma-separated list of allowed origins, e.g. "https://myapp.com,http://localhost:5500"
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ECHOVOICE_CORS_ORIGINS", "*").split(",")]
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if torch is not None else None
 
 # SQLite database that stores child profiles (and, going forward, sessions and
 # attempts per Data_Schema/schema.sql). Override with the ECHOVOICE_DB_PATH
@@ -109,6 +225,23 @@ _init_db()
 
 
 def _load_model():
+    """Load the fine-tuned checkpoint (preferred) or the base HuBERT model.
+
+    Returns (processor, model, model_source, using_fine_tuned). Returns
+    (None, None, source, False) whenever the model is not being served -- ASR
+    disabled, ML stack missing, or weights unavailable -- so phonemization and
+    the profile APIs keep working and /api/transcribe answers 503.
+    """
+    if not ASR_ENABLED:
+        logger.info(
+            "ECHOVOICE_ENABLE_ASR is not set; skipping the acoustic model "
+            "entirely. The frontend uses the browser Web Speech API instead."
+        )
+        return None, None, "disabled", False
+
+    if not ML_DEPS_OK:
+        return None, None, BASE_MODEL_ID, False
+
     has_checkpoint = os.path.isdir(FINE_TUNED_MODEL_DIR) and bool(os.listdir(FINE_TUNED_MODEL_DIR))
     model_source = FINE_TUNED_MODEL_DIR if has_checkpoint else BASE_MODEL_ID
 
@@ -131,7 +264,18 @@ def _load_model():
     return processor, model, model_source, has_checkpoint
 
 
-processor, model, MODEL_SOURCE, USING_FINE_TUNED = _load_model()
+try:
+    processor, model, MODEL_SOURCE, USING_FINE_TUNED = _load_model()
+    # Only advertise the model when weights are actually resident. Previously
+    # this was unconditionally True, so /api/health claimed a working ASR even
+    # when the ML stack was missing and _load_model returned None.
+    MODEL_AVAILABLE = processor is not None and model is not None
+except Exception as exc:
+    logger.exception("Failed to load the acoustic model; transcription disabled")
+    processor = model = None
+    MODEL_SOURCE = BASE_MODEL_ID
+    USING_FINE_TUNED = False
+    MODEL_AVAILABLE = False
 
 app = FastAPI(title="EchoVoice ASR Backend", version="1.0.0")
 
@@ -155,6 +299,21 @@ class HealthResponse(BaseModel):
     device: str
     model_source: str
     fine_tuned: bool
+    model_available: bool
+    asr_enabled: bool
+    g2p_available: bool
+    bundled_words: int
+    phonemizer_inventory: str
+
+
+class PhonemizeRequest(BaseModel):
+    text: str
+
+
+class PhonemizeResponse(BaseModel):
+    text: str
+    phonemes: List[str]
+    source: str
 
 
 class ProfileSaveRequest(BaseModel):
@@ -172,7 +331,7 @@ class ProfileResponse(BaseModel):
     session_date: Optional[str] = None
 
 
-def _decode_audio(raw_bytes: bytes) -> np.ndarray:
+def _decode_audio(raw_bytes: bytes):
     """Decode browser-recorded audio (webm/ogg/wav/etc.) into a mono
     float32 waveform resampled to TARGET_SAMPLE_RATE.
 
@@ -200,16 +359,47 @@ def _decode_audio(raw_bytes: bytes) -> np.ndarray:
 
 @app.get("/api/health", response_model=HealthResponse)
 def health():
+    # "ok" means the service can do its job. Phonemization and the profile
+    # APIs are the required half; the acoustic model is an optional extra, so
+    # its absence is reported but is not a degraded service.
     return HealthResponse(
         status="ok",
-        device=str(device),
+        device=str(device) if torch is not None else "not used",
         model_source=MODEL_SOURCE,
         fine_tuned=USING_FINE_TUNED,
+        model_available=MODEL_AVAILABLE,
+        asr_enabled=ASR_ENABLED,
+        **phonemizer_status(),
     )
+
+
+@app.post("/api/phonemize", response_model=PhonemizeResponse)
+def phonemize_endpoint(req: PhonemizeRequest):
+    """Convert text to ARPAbet phonemes using the training-time inventory.
+
+    The frontend calls this for BOTH the target word and the ASR hypothesis so
+    that PER is always computed against the same reference phonemes the trainer
+    used (g2p_en / CMUdict, stress digits stripped).
+    """
+    try:
+        phonemes, source = phonemize(req.text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PhonemizeResponse(text=req.text.strip().lower(), phonemes=phonemes, source=source)
 
 
 @app.post("/api/transcribe", response_model=TranscribeResponse)
 async def transcribe(audio: UploadFile = File(...)):
+    if not MODEL_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "ASR is disabled (ECHOVOICE_ENABLE_ASR=0) or the model failed to "
+                "load. The frontend falls back to the browser Web Speech API, or "
+                "to a clearly labelled simulation if that is unavailable too."
+            ),
+        )
+
     raw_bytes = await audio.read()
     if not raw_bytes:
         raise HTTPException(status_code=400, detail="Empty audio upload.")

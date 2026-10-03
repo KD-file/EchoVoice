@@ -1,6 +1,9 @@
 # EchoVoice - start the FastAPI ASR backend on port 8000.
 # See echovoice.env.example for the configurable environment variables.
 #
+#   ECHOVOICE_ENABLE_ASR    1 = load the HuBERT acoustic model, 0/unset = skip it
+#                           entirely and let the browser Web Speech API transcribe.
+#                           Set to 1 to switch back to the HuBERT pipeline.
 #   ECHOVOICE_MODEL_DIR     folder saved by trainer.save_model() ("hubert-bcs")
 #   ECHOVOICE_CORS_ORIGINS  comma-separated allowed origins, default "*"
 #   PORT                    listen port, default 8000
@@ -30,9 +33,11 @@ if (Test-Path $EnvFile) {
 
 if (-not (Test-Path $Python)) { $Python = "python" }
 if (-not $env:ECHOVOICE_MODEL_DIR) { $env:ECHOVOICE_MODEL_DIR = $DefaultModel }
+if (-not $env:ECHOVOICE_ENABLE_ASR) { $env:ECHOVOICE_ENABLE_ASR = "0" }
 if (-not $env:ECHOVOICE_CORS_ORIGINS) { $env:ECHOVOICE_CORS_ORIGINS = "*" }
 $Port = if ($env:PORT) { $env:PORT } else { "8000" }
 
+Write-Host "ECHOVOICE_ENABLE_ASR   = $env:ECHOVOICE_ENABLE_ASR  (1 = HuBERT loaded, 0 = browser Web Speech API)"
 Write-Host "ECHOVOICE_MODEL_DIR    = $env:ECHOVOICE_MODEL_DIR"
 Write-Host "ECHOVOICE_CORS_ORIGINS = $env:ECHOVOICE_CORS_ORIGINS"
 Write-Host "PORT                   = $Port"

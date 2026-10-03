@@ -1,8 +1,22 @@
 fastapi>=0.111
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
-transformers>=4.40
-torch>=2.2
-soundfile>=0.12
-librosa>=0.10
+
+# --- Optional acoustic model (NOT required) ---------------------------------
+# The frontend transcribes with the browser's Web Speech API, so EchoVoice runs
+# without these. Install them only if you intend to serve /api/transcribe from a
+# HuBERT checkpoint, and start the backend with ECHOVOICE_ENABLE_ASR=1.
+# transformers>=4.40
+# torch>=2.2
+# soundfile>=0.12
+# librosa>=0.10
 numpy>=1.26
+
+# Grapheme-to-phoneme. The trainer (hubert_percept_final.py) converts text to
+# ARPAbet with g2p_en, so the backend must use the same library or PER is not
+# comparable to the validated PER. The bundled Source_Code/phonemes.json covers
+# the word bank offline; g2p_en handles any other word.
+# One-time NLTK data (CMUdict) after installing:
+#   python -c "import nltk; nltk.download('averaged_perceptron_tagger_eng'); nltk.download('cmudict')"
+# Behind a proxy, prefix that command with NLTK_ALLOW_PROXIED_URLOPEN=1
+g2p_en>=2.1

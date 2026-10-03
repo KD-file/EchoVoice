@@ -17,7 +17,7 @@
 <!-- Splash Screen -->
 <div class="splash" id="splash">
   <div class="splash-inner">
-    <div class="splash-logo">🎙️ EchoVoice</div>
+    <div class="splash-logo">EchoVoice</div>
     <div class="splash-tag">Phoneme-Level Speech Assessment for Children</div>
     <div class="spinner"></div>
   </div>
@@ -26,7 +26,7 @@
 <!-- Authentication Screen -->
 <div class="auth-screen" id="authScreen" style="display:none;">
   <div class="auth-card">
-    <div class="auth-logo">🎙️ EchoVoice</div>
+    <div class="auth-logo">EchoVoice</div>
     <div class="auth-welcome">Welcome to EchoVoice</div>
     <div class="auth-tabs">
       <button type="button" class="auth-tab active" id="authTabLogin">Log In</button>
@@ -59,99 +59,107 @@
 
   <!-- Header -->
   <div class="header">
-    <div class="header-logo">🎙️ EchoVoice</div>
-    <div class="header-tagline">Self-Supervised Acoustic Modeling for Phoneme-Level Error Detection in Children's Speech</div>
+    <div class="header-bar">
+      <button type="button" class="hamburger-btn" id="hamburgerBtn"
+              aria-label="Open menu" aria-expanded="false" aria-controls="appDrawer">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="header-logo">EchoVoice</div>
+      <button type="button" class="profile-icon-btn" id="profileIconBtn"
+              aria-label="Open profile" aria-controls="section-profile" title="Profile">
+        <span class="profile-avatar" id="profileAvatar" aria-hidden="true">👤</span>
+      </button>
+    </div>
+    <div class="header-tagline">A Web-Based Pronunciation Assessment for Speech Therapy</div>
     <div class="header-authors">
       Nievera, K.D. &bull; Cerezo, K.A. &bull; Doctolero, M.J. &bull; Gonzales, R.Jr. &bull; Paglingayen, J.<br>
       DMMMSU – South La Union Campus &bull; College of Computer Science &bull; October 2026
     </div>
-    <div class="header-user">
-      <span class="header-user-name" id="headerUsername"></span>
-      <button type="button" class="logout-btn" id="logoutBtn">Log out</button>
-    </div>
   </div>
+
+  <!-- Hamburger drawer -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="app-drawer" id="appDrawer" aria-hidden="true" aria-label="Main menu">
+    <div class="drawer-head">
+      <button type="button" class="drawer-identity" id="drawerProfileBtn" aria-label="Open profile page">
+        <span class="profile-avatar lg" id="drawerAvatar" aria-hidden="true">👤</span>
+        <span class="drawer-identity-text">
+          <span class="drawer-username" id="drawerUsername">Signed out</span>
+          <span class="drawer-userlabel">View profile &amp; progress →</span>
+        </span>
+      </button>
+      <button type="button" class="drawer-close" id="drawerClose" aria-label="Close menu">✕</button>
+    </div>
+
+    <nav class="drawer-nav">
+      <button type="button" class="drawer-item active" data-tab="practice">🎯 <span>Practice</span></button>
+      <button type="button" class="drawer-item" data-tab="history">📊 <span>History</span></button>
+      <button type="button" class="drawer-item" data-tab="report">📄 <span>Report</span></button>
+      <button type="button" class="drawer-item" data-tab="profile">👤 <span>Profile</span></button>
+      <button type="button" class="drawer-item" data-tab="about">📖 <span>About</span></button>
+    </nav>
+
+    <button type="button" class="drawer-signout" id="logoutBtn">
+      <span aria-hidden="true">🚪</span> Sign Out
+    </button>
+  </aside>
 
   <!-- Unsupported banner -->
   <div class="unsupported-banner" id="unsupported">
-    😔 Your browser doesn't support microphone recording. Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.
+    Your browser doesn't support microphone recording. Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.
   </div>
   <div class="unsupported-banner" id="backendOffline" style="display:none;">
-    ⚠️ Can't reach the EchoVoice ASR backend at <code id="backendUrlLabel"></code>. Start it (see Documentation/README_backend.md) and refresh.
+    Can't reach the EchoVoice backend at <code id="backendUrlLabel"></code>. Start it (see Documentation/README_backend.md) and refresh. Phonemization and profiles need it; speech recognition does not.
   </div>
-
-  <!-- Navigation -->
-  <div class="nav-tabs">
-    <button class="nav-tab active" data-tab="practice">🎯 Practice</button>
-    <button class="nav-tab" data-tab="history">📊 History</button>
-    <button class="nav-tab" data-tab="report">📄 Report</button>
-    <button class="nav-tab" data-tab="about">📖 About</button>
+  <div class="unsupported-banner demo-banner" id="demoModeBanner" style="display:none;">
+    <strong>Demo mode:</strong> no speech transcriber is available, so spoken attempts are simulated on-device. Every feature still works.
+  </div>
+  <div class="asr-engine-bar" id="asrEngineBar">
+    <span id="asrEngineLabel">Checking speech recognition…</span>
   </div>
 
   <!-- ==================== PRACTICE TAB ==================== -->
   <div class="section active" id="section-practice">
 
-    <!-- Child Profile -->
-    <div class="card">
-      <div class="card-title">👤 Child Profile</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Child's Name</label>
-          <input type="text" id="childName" placeholder="e.g. Juan" />
-        </div>
-        <div class="form-group">
-          <label>Age</label>
-          <input type="number" id="childAge" min="3" max="17" placeholder="e.g. 6" />
-        </div>
-        <div class="form-group">
-          <label>Session Date</label>
-          <input type="date" id="sessionDate" />
-        </div>
-      </div>
-      <div class="form-row" style="align-items:center;">
-        <button class="save-profile-btn" id="saveProfileBtn" type="button">💾 Save Profile</button>
-        <span id="profileSaveMsg" style="font-size:.8rem; color:var(--text-muted);"></span>
-      </div>
-    </div>
-
     <!-- Category Selector -->
     <div class="card">
-      <div class="card-title">📚 Word Categories</div>
-      <div class="category-selector" id="categorySelector"></div>
+      <div class="card-title">Word Categories</div>
+      <div class="category-grid" id="categorySelector"></div>
     </div>
 
     <!-- Random Word Practice -->
     <div class="card">
-      <div class="card-title">🎲 Random Word Practice</div>
+      <div class="card-title">Random Word Practice</div>
       <p class="random-hint">EchoVoice picks a surprise word and says it aloud — listen carefully and speak it back! Your speech is transcribed to text and compared to the target.</p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-        <button class="random-btn" id="randomWordBtn">🎲 Pick a Random Word</button>
-        <button class="random-btn secondary" id="randomHearAgainBtn">🔊 Hear It Again</button>
+        <button class="random-btn" id="randomWordBtn">Pick a Random Word</button>
+        <button class="random-btn secondary" id="randomHearAgainBtn">Hear It Again</button>
       </div>
     </div>
 
     <!-- Custom Word Practice -->
     <div class="card">
-      <div class="card-title">✍️ Custom Word Practice</div>
+      <div class="card-title">Custom Word Practice</div>
       <p class="random-hint">Type any word or short phrase — EchoVoice speaks it aloud for the child to listen, then transcribes the attempt and scores it.</p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; align-items:center;">
         <input type="text" id="customWordInput" class="custom-word-input" placeholder="e.g. airplane" />
-        <button class="random-btn" id="customWordBtn">▶️ Say It Aloud</button>
-        <button class="random-btn secondary" id="customHearAgainBtn">🔊 Hear It Again</button>
+        <button class="random-btn" id="customWordBtn">▶Say It Aloud</button>
+        <button class="random-btn secondary" id="customHearAgainBtn">Hear It Again</button>
       </div>
     </div>
 
     <!-- Word Grid -->
     <div class="card">
-      <div class="card-title">🔤 Select a Word to Practice</div>
+      <div class="card-title">Select a Word to Practice</div>
       <div class="word-grid" id="wordGrid"></div>
     </div>
 
     <!-- Active Word Panel (hidden until word selected) -->
     <div class="active-word-panel" id="activeWordPanel" style="display:none;">
-      <div class="target-label">🎯 Target Word</div>
+      <div class="target-label">Target Word</div>
       <div class="target-word" id="targetWordDisplay">—</div>
       <div class="target-ipa" id="targetIpaDisplay">—</div>
-      <button class="listen-target-btn" id="listenTargetBtn">🔊 Listen First</button>
+      <button class="listen-target-btn" id="listenTargetBtn">Listen First</button>
     </div>
 
     <!-- Mic Section -->
@@ -163,16 +171,33 @@
     <!-- Result Panel -->
     <div id="resultPanel" style="display:none;">
       <div class="card result-panel">
-        <div class="card-title">📊 Analysis Result</div>
+        <div class="card-title">Analysis Result</div>
+
+        <div class="demo-badge" id="demoModeBadge" style="display:none;">
+          Demo Mode — no speech transcriber available, simulated attempt
+        </div>
+
+        <div class="asr-engine-note" id="asrEngineNote" style="display:none;"></div>
 
         <div class="result-comparison">
           <div class="result-box target">
-            <div class="result-label">🎯 Target</div>
+            <div class="result-label">Target</div>
             <div class="result-value" id="resultTarget">—</div>
           </div>
           <div class="result-box spoken">
-            <div class="result-label">🗣️ You Said</div>
+            <div class="result-label">You Said</div>
             <div class="result-value" id="resultSpoken">—</div>
+          </div>
+        </div>
+
+        <!-- Feedback System -->
+        <div class="feedback-panel" id="feedbackPanel" style="display:none;">
+          <div class="feedback-stars" id="feedbackStars" aria-hidden="true"></div>
+          <div class="feedback-message" id="feedbackMessage"></div>
+          <div class="feedback-sub" id="feedbackSub"></div>
+          <div class="feedback-actions" id="feedbackActions">
+            <button type="button" class="feedback-replay-btn" id="feedbackReplayBtn">Listen Again</button>
+            <button type="button" class="feedback-try-btn" id="feedbackTryBtn">Try Again</button>
           </div>
         </div>
 
@@ -196,8 +221,8 @@
   <div class="section" id="section-history">
     <div class="card">
       <div class="card-title" style="justify-content:space-between;">
-        <span>📋 Session History</span>
-        <button class="clear-btn" id="clearHistoryBtn">🗑️ Clear All</button>
+        <span>Session History</span>
+        <button class="clear-btn" id="clearHistoryBtn">Clear All</button>
       </div>
       <div id="historyContent">
         <p style="color:var(--text-muted); font-style:italic;">No attempts recorded yet. Practice some words first!</p>
@@ -208,12 +233,14 @@
   <!-- ==================== REPORT TAB ==================== -->
   <div class="section" id="section-report">
     <div class="card">
-      <div class="card-title">📄 Assessment Report &amp; PDF Generator</div>
+      <div class="card-title">Assessment Reports &amp; Exports</div>
 
       <div class="info-box">
-        <strong>EchoVoice Report Generator</strong> — Calculates aggregate <strong>Phoneme Error Rate (PER)</strong> and
-        <strong>Word Error Rate (WER)</strong> from all session attempts and generates a downloadable PDF report.
-        Metrics computed using Levenshtein dynamic programming alignment per the EchoVoice methodology.
+        <strong>Dual report generator</strong> — a simplified <strong>Child Progress Report</strong>
+        (star ratings, streaks and badges with no technical metrics, for home practice) and a technical
+        <strong>Clinician Report</strong> (phoneme error matrix, error-pattern trends, session metrics
+        and a CSV data dump, for the cooperating SLP). Aggregate <strong>PER</strong>/<strong>WER</strong>
+        come from Levenshtein dynamic programming alignment per the EchoVoice methodology.
       </div>
 
       <div class="report-summary" id="reportSummary">
@@ -249,8 +276,116 @@
         </div>
       </div>
 
-      <div style="text-align:center; margin-top: 20px;">
-        <button class="gen-pdf-btn" id="genPdfBtn">📥 Generate PDF Report</button>
+      <div class="report-actions">
+        <div class="report-action">
+          <div class="ra-icon">🧒</div>
+          <div class="ra-title">Child Progress Report</div>
+          <div class="ra-desc">Star ratings, streaks and badges. No technical metrics — for the child and home practice.</div>
+          <button class="gen-pdf-btn child" id="genChildPdfBtn">📥 Child Report (PDF)</button>
+        </div>
+        <div class="report-action">
+          <div class="ra-icon">🩺</div>
+          <div class="ra-title">Clinician Report</div>
+          <div class="ra-desc">Phoneme error matrix, error-pattern trends and session metrics — for the cooperating SLP.</div>
+          <button class="gen-pdf-btn clinician" id="genClinicianPdfBtn">📥 Clinician Report (PDF)</button>
+        </div>
+        <div class="report-action">
+          <div class="ra-icon">📊</div>
+          <div class="ra-title">Session Data (CSV)</div>
+          <div class="ra-desc">One row per attempt with phoneme-level detail, for spreadsheet and statistical analysis.</div>
+          <button class="gen-pdf-btn csv" id="exportCsvBtn">📥 Export CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PROFILE TAB ==================== -->
+  <div class="section" id="section-profile">
+
+    <!-- Profile Status -->
+    <div class="card">
+      <div class="card-title">Profile Status</div>
+      <div class="profile-hero">
+        <span class="profile-avatar xl" id="profilePageAvatar" aria-hidden="true">👤</span>
+        <div class="profile-hero-text">
+          <div class="profile-hero-name" id="profileHeroName">No child profile yet</div>
+          <div class="profile-hero-meta" id="profileHeroMeta">Save a profile below to start tracking progress.</div>
+        </div>
+        <div class="profile-hero-ring" id="profileHeroRing">
+          <div class="ring-value" id="profileMasteryPct">0%</div>
+          <div class="ring-label">Mastery</div>
+        </div>
+      </div>
+      <div class="profile-progress-track" role="progressbar" aria-labelledby="profileMasteryPct"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="profileMasteryBar">
+        <div class="profile-progress-fill" id="profileMasteryFill"></div>
+      </div>
+      <div class="profile-progress-caption" id="profileProgressCaption">0 words mastered (accuracy ≥ 80%)</div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="card">
+      <div class="card-title">Summary</div>
+      <div class="report-summary">
+        <div class="report-stat">
+          <div class="r-icon">🔁</div>
+          <div class="r-value" id="pfAttempts">0</div>
+          <div class="r-label">Total Attempts</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">🔤</div>
+          <div class="r-value" id="pfUniqueWords">0</div>
+          <div class="r-label">Unique Words</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">✅</div>
+          <div class="r-value" id="pfAvgAccuracy">—</div>
+          <div class="r-label">Avg Accuracy</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">📝</div>
+          <div class="r-value" id="pfAvgWER">—</div>
+          <div class="r-label">Avg Word Error Rate</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">🔬</div>
+          <div class="r-value" id="pfAvgPER">—</div>
+          <div class="r-label">Avg Phoneme Error Rate</div>
+        </div>
+        <div class="report-stat">
+          <div class="r-icon">⭐</div>
+          <div class="r-value" id="pfMastered">0</div>
+          <div class="r-label">Words Mastered</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Progress -->
+    <div class="card">
+      <div class="card-title">Progress by Category</div>
+      <div class="profile-category-list" id="profileCategoryList"></div>
+    </div>
+
+    <!-- Editable Child Profile -->
+    <div class="card">
+      <div class="card-title">Edit Child Profile</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Child's Name</label>
+          <input type="text" id="childName" placeholder="e.g. Juan" />
+        </div>
+        <div class="form-group">
+          <label>Age</label>
+          <input type="number" id="childAge" min="3" max="17" placeholder="e.g. 6" />
+        </div>
+        <div class="form-group">
+          <label>Session Date</label>
+          <input type="date" id="sessionDate" />
+        </div>
+      </div>
+      <div class="form-row" style="align-items:center;">
+        <button class="save-profile-btn" id="saveProfileBtn" type="button">💾 Save Profile</button>
+        <span id="profileSaveMsg" style="font-size:.8rem; color:var(--text-muted);"></span>
       </div>
     </div>
   </div>
@@ -258,7 +393,7 @@
   <!-- ==================== ABOUT / MANUSCRIPT TAB ==================== -->
   <div class="section" id="section-about">
     <div class="card">
-      <div class="card-title">📖 About EchoVoice — Research Manuscript</div>
+      <div class="card-title">About EchoVoice — Research Manuscript</div>
       <div class="manuscript-content" id="manuscriptContent"></div>
     </div>
   </div>
