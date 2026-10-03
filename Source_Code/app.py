@@ -34,6 +34,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO)
@@ -355,6 +356,71 @@ def _decode_audio(raw_bytes: bytes):
         waveform = librosa.resample(waveform, orig_sr=sr, target_sr=TARGET_SAMPLE_RATE)
 
     return waveform.astype(np.float32)
+
+
+# The backend exposes API routes only, so opening http://127.0.0.1:8000/ in a
+# browser used to return a bare {"detail":"Not Found"} 404. This landing page
+# makes it obvious that the UI lives on a different port.
+FRONTEND_URLS = [
+    "http://127.0.0.1:5500/index.html",
+    "http://localhost:5500/index.html",
+]
+
+
+@app.get("/", response_class=HTMLResponse)
+def root():
+    rows = "".join(
+        f"<tr><td><code>{method}</code></td><td><code>{path}</code></td>"
+        f"<td>{note}</td></tr>"
+        for method, path, note in (
+            ("GET", "/api/health", "status, ASR engine, phonemizer inventory"),
+            ("POST", "/api/phonemize", "text to ARPAbet phonemes"),
+            ("POST", "/api/transcribe", "audio to text (503 when ASR is disabled)"),
+            ("GET", "/api/profiles", "list saved child profiles"),
+            ("POST", "/api/profile", "create or update a child profile"),
+        )
+    )
+    links = "".join(f'<li><a href="{u}">{u}</a></li>' for u in FRONTEND_URLS)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EchoVoice backend</title>
+<style>
+ body {{ font-family: system-ui, sans-serif; margin: 3rem auto; max-width: 46rem;
+        line-height: 1.5; color: #1f2933; }}
+ h1 {{ font-size: 1.4rem; margin-bottom: .25rem; }}
+ p.sub {{ color: #616e7c; margin-top: 0; }}
+ table {{ border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; }}
+ th, td {{ text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #e4e7eb;
+           font-size: .9rem; vertical-align: top; }}
+ th {{ background: #f5f7fa; font-weight: 600; }}
+ code {{ background: #f5f7fa; padding: .1rem .3rem; border-radius: 3px;
+         font-size: .85rem; }}
+ .box {{ background: #f0f7ff; border-left: 4px solid #2680c2;
+         padding: .8rem 1rem; border-radius: 0 4px 4px 0; }}
+ a {{ color: #2680c2; }}
+</style>
+</head>
+<body>
+<h1>EchoVoice backend is running</h1>
+<p class="sub">This process serves the API only. The user interface is a separate
+page served by the frontend server.</p>
+
+<div class="box">
+  <strong>Open the app here:</strong>
+  <ul>{links}</ul>
+</div>
+
+<h2 style="font-size:1rem;">Available endpoints</h2>
+<table>
+ <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+ {rows}
+</table>
+
+<p class="sub">Interactive API documentation: <a href="/docs">/docs</a></p>
+</body>
+</html>"""
 
 
 @app.get("/api/health", response_model=HealthResponse)
