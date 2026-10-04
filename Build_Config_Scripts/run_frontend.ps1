@@ -23,9 +23,10 @@ Write-Host "Serving $SiteDir"
 Write-Host "FRONTEND_BIND = $env:FRONTEND_BIND"
 Write-Host "FRONTEND_PORT = $env:FRONTEND_PORT"
 Write-Host ""
-Write-Host "Open http://$($env:FRONTEND_BIND):$($env:FRONTEND_PORT)/index.html in your browser."
-Write-Host "The backend should be running on http://127.0.0.1:8000 - see run_backend.ps1."
-Write-Host "Press Ctrl+C to stop."
+Write-Host "Open http://$($env:FRONTEND_BIND):$($env:FRONTEND_PORT)/index.html"
+Write-Host "Use Chrome or Edge - the Web Speech API that transcribes when HuBERT is"
+Write-Host "off is not available in Firefox. The backend must be running on port 8000"
+Write-Host "(see run_backend.ps1). Press Ctrl+C to stop."
 Write-Host ""
 
 & $Python -m http.server $env:FRONTEND_PORT --bind $env:FRONTEND_BIND --directory $SiteDir

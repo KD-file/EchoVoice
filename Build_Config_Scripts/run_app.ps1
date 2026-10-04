@@ -7,6 +7,7 @@
 #   ECHOVOICE_ENABLE_ASR   1 = load HuBERT, 0/unset = browser Web Speech API
 #   PORT                  backend port, default 8000
 #   FRONTEND_PORT         frontend port, default 5500
+#   ECHOVOICE_BROWSER     chrome (default) | edge | none
 
 $ErrorActionPreference = "Stop"
 
@@ -84,7 +85,45 @@ if (-not $backendReady) { Write-Warning "Backend did not answer yet. If ASR is e
 
 Write-Host ""
 Write-Host "Opening $FrontendUrl"
-Start-Process $FrontendUrl
+
+# Launch in the browser explicitly. EchoVoice needs the Web Speech API for
+# transcription when HuBERT is off, which is Chrome/Edge only - so default to
+# Chrome rather than whatever the OS has associated with http://.
+$BrowserChoice = if ($env:ECHOVOICE_BROWSER) { $env:ECHOVOICE_BROWSER } else { "chrome" }
+$Chrome = @(
+    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+$Edge = @(
+    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+
+# A dedicated profile keeps the mic permission decision stable between runs and
+# avoids the "restore pages" prompt from an existing window.
+$ProfileDir = Join-Path $env:LOCALAPPDATA "EchoVoice\chrome-profile"
+$executable = $null
+switch ($BrowserChoice.ToLower()) {
+    "chrome" { $executable = $Chrome }
+    "edge"   { $executable = $Edge }
+    "none"   { $executable = $null }
+    default   { $executable = $null }
+}
+
+if ($executable) {
+    Start-Process $executable -ArgumentList @(
+        "--user-data-dir=$ProfileDir",
+        "--no-first-run",
+        "--no-default-browser-check",
+        $FrontendUrl
+    )
+    Write-Host "  launched $executable"
+    Write-Host "  mic permission will be requested on this origin (allow it to record)."
+} else {
+    Write-Host "  ECHOVOICE_BROWSER=$BrowserChoice (or Chrome not found); opening the default browser."
+    Start-Process $FrontendUrl
+}
+
 Write-Host ""
 Write-Host "Both servers are running in the background."
 Write-Host "  backend  pid $($backend.Id)"
