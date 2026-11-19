@@ -2,41 +2,32 @@
     /* ===== Reset ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #f0f2f8;
-      --primary: #6c5ce7;
-      --primary-dark: #5a4bd1;
-      --primary-light: #a29bfe;
-      --accent: #fd79a8;
-      --green: #00b894;
-      --green-dark: #00a381;
-      --yellow: #fdcb6e;
-      --orange: #e17055;
-      --red: #d63031;
-      --blue: #74b9ff;
-      --text: #2d3436;
-      --text-light: #636e72;
-      --text-muted: #b2bec3;
+      --bg: #FFFDF8;
+      --primary: #4F46E5;
+      --primary-dark: #4338CA;
+      --primary-light: #818CF8;
+      --accent: #F59E0B;
+      --green: #10B981;
+      --green-dark: #059669;
+      --yellow: #FDE68A;
+      --orange: #F97316;
+      --red: #EF4444;
+      --blue: #38BDF8;
+      --text: #1E293B;
+      --text-light: #475569;
+      --text-muted: #94A3B8;
       --white: #ffffff;
-      --card-bg: #ffffff;
-      --border: #dfe6e9;
-      --radius: 18px;
-      --radius-sm: 12px;
-      --shadow: 0 4px 20px rgba(108,92,231,.10);
-      --shadow-lg: 0 8px 30px rgba(108,92,231,.15);
+      --card-bg: rgba(255,255,255,0.95);
+      --border: #E2E8F0;
+      --radius: 2rem;
+      --radius-sm: 1.25rem;
+      --shadow: 0 10px 28px -6px rgba(30,41,59,.08), 0 4px 12px -4px rgba(30,41,59,.04);
+      --shadow-lg: 0 16px 36px -8px rgba(79,70,229,.16);
     }
     html { scroll-behavior: smooth; }
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url('bg-cover.jpg');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-  opacity: 0.15;
-  z-index: -1;
-  pointer-events: none;
-}
+    body { font-family: 'Inter', sans-serif; }
+    h1, h2, h3, .font-display { font-family: 'Fredoka', 'Inter', sans-serif; }
+body::before { content: none; }
 
     /* ===== Background Shapes ===== */
     .bg-shapes { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
@@ -50,7 +41,7 @@ body::before {
     }
 
     /* ===== Container ===== */
-    .app-wrapper { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+    .app-wrapper { position: relative; z-index: 1; max-width: 1024px; margin: 0 auto; padding: 20px 16px 60px; }
 
 /* ===== Header ===== */
 .header {
@@ -861,9 +852,7 @@ body::before {
 .splash {
   position: fixed; inset: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: center;
-  background-image: url('bg-cover.jpg');
-  background-size: cover;
-  background-position: center;
+  background-color: #FFFDF8;
 }
 .splash.hidden { opacity: 0; visibility: hidden; transition: opacity .5s, visibility .5s; }
 .splash-inner { text-align: center; color: #fff; }
@@ -881,9 +870,7 @@ body::before {
 .auth-screen {
   position: fixed; inset: 0; z-index: 999;
   display: flex; align-items: center; justify-content: center;
-  background-image: url('bg-cover.jpg');
-  background-size: cover;
-  background-position: center;
+  background-color: #FFFDF8;
   padding: 20px;
 }
 .auth-card {
@@ -967,4 +954,43 @@ body::before {
   background: rgba(249, 168, 37, 0.14);
   border-left-color: #f9a837;
   font-weight: 600;
+}
+
+/* ===== Guide companion (prototype style) ===== */
+.guide-widget {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 60;
+  pointer-events: none;
+}
+.guide-bubble {
+  background: rgba(255,255,255,0.95);
+  border: 2px solid #818CF8;
+  border-radius: 1.5rem;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  box-shadow: 0 10px 28px -6px rgba(30,41,59,.08), 0 4px 12px -4px rgba(30,41,59,.04);
+  max-width: 220px;
+  text-align: center;
+}
+.guide-title {
+  font-family: 'Fredoka', 'Inter', sans-serif;
+  font-weight: 700;
+  color: #1E293B;
+  font-size: 1rem;
+  margin: 0;
+}
+.guide-sub {
+  font-size: .75rem;
+  color: #64748B;
+  margin: 4px 0 0;
+}
+.guide-img {
+  height: 120px;
+  width: auto;
+  filter: drop-shadow(0 6px 12px rgba(30,41,59,.15));
 }

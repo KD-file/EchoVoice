@@ -965,7 +965,7 @@ async function analyzeAttempt(spokenText, asrEngine) {
       alignment: []
     };
     sessionHistory.push(attempt);
-    saveSessionHistory();
+    localStorage.setItem(historyKey(currentUser()), JSON.stringify(sessionHistory));
     renderResults(attempt);
     renderFeedback(0);
     $('resultPanel').style.display = 'block';
@@ -1328,7 +1328,7 @@ function feedbackBandFor(accuracy) {
   return FEEDBACK_BANDS.find(b => accuracy >= b.min) || FEEDBACK_BANDS[FEEDBACK_BANDS.length - 1];
 }
 
-function saveSessionHistory(){ try{ var k='echovoice_history_'+(localStorage.getItem('echovoice_session')||'default'); localStorage.setItem(k, JSON.stringify(sessionHistory||[])); }catch(e){} }
+function saveSessionHistory(){ try{ localStorage.setItem(historyKey(currentUser()), JSON.stringify(sessionHistory||[])); }catch(e){} }
 
 function renderFeedback(accuracy) {
   const fb = feedbackBandFor(accuracy);
@@ -2336,6 +2336,8 @@ function showApp() {
   clearChildProfile();
   authScreenEl.style.display = 'none';
   appWrapper.style.display = 'block';
+  const gw = document.getElementById('guideWidget');
+  if (gw) gw.style.display = 'flex';
   renderProfileIdentity();
   loadHistoryForUser(currentUser());
 }
@@ -2345,6 +2347,8 @@ function showAuth() {
   sessionHistory = [];
   appWrapper.style.display = 'none';
   authScreenEl.style.display = 'flex';
+  const gw = document.getElementById('guideWidget');
+  if (gw) gw.style.display = 'none';
   renderProfileIdentity();
   if (appDrawer.classList.contains('open')) setDrawer(false);
 }

@@ -56,7 +56,7 @@ Write-Host "Starting frontend..."
 $frontend = Start-Process -FilePath $Python `
     -ArgumentList "-m", "http.server", $env:FRONTEND_PORT,
                   "--bind", $env:FRONTEND_BIND,
-                  "--directory", (Join-Path $Root "Source_Code") `
+                  "--directory", $Root `
     -WorkingDirectory $Root -PassThru -WindowStyle Hidden
 
 # ---- wait for both ----

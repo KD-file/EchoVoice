@@ -7,7 +7,7 @@
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
-$SiteDir = Join-Path $Root "Source_Code"
+$SiteDir = $Root
 $Python = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $Python)) { $Python = "python" }
 
